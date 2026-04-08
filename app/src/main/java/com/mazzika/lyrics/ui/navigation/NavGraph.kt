@@ -11,6 +11,8 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.mazzika.lyrics.ui.catalog.CatalogScreen
+import com.mazzika.lyrics.ui.folders.FolderDetailScreen
 import com.mazzika.lyrics.ui.home.HomeScreen
 
 @Composable
@@ -49,7 +51,11 @@ fun NavGraph(
         }
 
         composable(Screen.Catalog.route) {
-            PlaceholderScreen(name = "Catalogue")
+            CatalogScreen(
+                onNavigateToReader = { documentId ->
+                    navController.navigate(Screen.Reader.createRoute(documentId))
+                },
+            )
         }
 
         composable(Screen.Sync.route) {
@@ -65,9 +71,16 @@ fun NavGraph(
             arguments = listOf(
                 navArgument("folderId") { type = NavType.LongType },
             ),
-        ) { backStackEntry ->
-            val folderId = backStackEntry.arguments?.getLong("folderId") ?: -1L
-            PlaceholderScreen(name = "Dossier #$folderId")
+        ) {
+            FolderDetailScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToFolder = { folderId ->
+                    navController.navigate(Screen.FolderDetail.createRoute(folderId))
+                },
+                onNavigateToReader = { documentId ->
+                    navController.navigate(Screen.Reader.createRoute(documentId))
+                },
+            )
         }
 
         composable(
