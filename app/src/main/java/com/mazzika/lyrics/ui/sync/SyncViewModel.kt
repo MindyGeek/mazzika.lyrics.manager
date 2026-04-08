@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mazzika.lyrics.MazzikaApplication
@@ -31,6 +32,10 @@ enum class SyncRole { NONE, PILOT, FOLLOWER }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SyncViewModel(application: Application) : AndroidViewModel(application) {
+
+    companion object {
+        private const val TAG = "SyncViewModel"
+    }
 
     private val app = application as MazzikaApplication
 
@@ -134,6 +139,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _sessionManager.value?.incomingMessages?.onEach { pair ->
             pair ?: return@onEach
             val (endpointId, message) = pair
+            Log.d(TAG, "Received message from $endpointId: $message")
             handleMessage(endpointId, message)
         }?.launchIn(viewModelScope)
     }
@@ -156,27 +162,38 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun handleMessage(endpointId: String, message: SyncMessage) {
         viewModelScope.launch {
-            val manager = _sessionManager.value ?: return@launch
+            val manager = _sessionManager.value ?: run {
+                Log.e(TAG, "handleMessage: sessionManager is null!")
+                return@launch
+            }
             when (message) {
                 is SyncMessage.SessionInfo -> {
+                    Log.d(TAG, "SessionInfo received: title=${message.title}, hash=${message.fileHash}")
                     val existing = app.database.pdfDocumentDao().getByHash(message.fileHash)
                     if (existing != null) {
+                        Log.d(TAG, "File already exists locally at ${existing.filePath}")
                         manager.sendMessage(endpointId, SyncMessage.AlreadyHave(message.fileHash))
                         _syncFilePath.value = existing.filePath
                     } else {
+                        Log.d(TAG, "File not found locally, requesting transfer")
                         manager.sendMessage(endpointId, SyncMessage.NeedFile(message.fileHash))
                     }
                 }
                 is SyncMessage.NeedFile -> {
+                    Log.d(TAG, "NeedFile received for hash=${message.fileHash}")
                     val doc = app.database.pdfDocumentDao().getByHash(message.fileHash)
                     if (doc != null) {
+                        Log.d(TAG, "Sending file: ${doc.filePath}")
                         manager.sendFile(endpointId, doc.filePath)
+                    } else {
+                        Log.e(TAG, "Cannot find file with hash=${message.fileHash} to send!")
                     }
                 }
                 is SyncMessage.AlreadyHave -> {
-                    // Follower already has the file, nothing to do
+                    Log.d(TAG, "Follower already has the file")
                 }
                 is SyncMessage.PageChange -> {
+                    Log.d(TAG, "PageChange to ${message.page}, detached=${_isDetached.value}")
                     _pilotCurrentPage.value = message.page
                     if (!_isDetached.value) {
                         _syncPage.value = message.page
@@ -205,6 +222,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Called when a FILE payload is received (large PDF). */
     fun handleIncomingFilePath(path: String) {
+        Log.d(TAG, "handleIncomingFilePath: $path")
         viewModelScope.launch {
             val autoSave = app.userPreferences.autoSaveSync
                 .stateIn(viewModelScope, SharingStarted.Eagerly, false).value
@@ -256,29 +274,36 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startAsPilot(document: PdfDocumentEntity) {
+        Log.d(TAG, "startAsPilot: ${document.title}")
         _selectedDocument.value = document
         _role.value = SyncRole.PILOT
         startService()
         viewModelScope.launch {
             awaitServiceReady()
             val deviceName = app.userPreferences.deviceName.first()
+            Log.d(TAG, "Starting advertising as '$deviceName'")
             _sessionManager.value?.startAdvertising(deviceName)
         }
     }
 
     fun startAsFollower() {
+        Log.d(TAG, "startAsFollower")
         _role.value = SyncRole.FOLLOWER
         startService()
         viewModelScope.launch {
             awaitServiceReady()
+            Log.d(TAG, "Starting discovery")
             _sessionManager.value?.startDiscovery()
         }
     }
 
     fun connectToEndpoint(endpointId: String) {
-        val deviceName = app.userPreferences.deviceName
-            .stateIn(viewModelScope, SharingStarted.Eagerly, android.os.Build.MODEL).value
-        _sessionManager.value?.requestConnection(endpointId, deviceName)
+        viewModelScope.launch {
+            awaitServiceReady()
+            val deviceName = app.userPreferences.deviceName.first()
+            Log.d(TAG, "Requesting connection to $endpointId as '$deviceName'")
+            _sessionManager.value?.requestConnection(endpointId, deviceName)
+        }
     }
 
     fun broadcastPageChange(page: Int) {
@@ -287,14 +312,19 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun observeConnectedEndpoints() {
         _sessionManager.value?.connectedEndpoints?.onEach { endpoints ->
+            Log.d(TAG, "Connected endpoints changed: ${endpoints.size} endpoints, role=${_role.value}")
             if (_role.value == SyncRole.PILOT) {
-                val doc = _selectedDocument.value ?: return@onEach
+                val doc = _selectedDocument.value ?: run {
+                    Log.w(TAG, "No selected document to share")
+                    return@onEach
+                }
                 val message = SyncMessage.SessionInfo(
                     title = doc.title,
                     pageCount = doc.pageCount,
                     fileHash = doc.fileHash,
                 )
                 endpoints.forEach { endpoint ->
+                    Log.d(TAG, "Sending SESSION_INFO to ${endpoint.id} (${endpoint.name})")
                     _sessionManager.value?.sendMessage(endpoint.id, message)
                 }
             }
