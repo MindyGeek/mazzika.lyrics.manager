@@ -3,6 +3,7 @@ package com.mazzika.lyrics.ui.catalog
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -90,6 +92,8 @@ fun CatalogScreen(
         uri?.let { viewModel.importPdf(it) }
     }
 
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+
     Box(modifier = Modifier.fillMaxSize().background(DarkBackground)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -120,6 +124,14 @@ fun CatalogScreen(
             if (documents.isEmpty()) {
                 item {
                     EmptyCatalogState()
+                }
+            } else if (isTablet) {
+                item {
+                    TwoColumnFileGrid(
+                        documents = documents,
+                        onNavigateToReader = onNavigateToReader,
+                        onDelete = { viewModel.deleteDocument(it) },
+                    )
                 }
             } else {
                 items(documents) { document ->
@@ -273,20 +285,62 @@ private fun SortChips(
 }
 
 @Composable
+private fun TwoColumnFileGrid(
+    documents: List<PdfDocumentEntity>,
+    onNavigateToReader: (Long) -> Unit,
+    onDelete: (Long) -> Unit,
+) {
+    val rows = documents.chunked(2)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        rows.forEach { rowDocs ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rowDocs.forEach { document ->
+                    Box(modifier = Modifier.weight(1f)) {
+                        FileCard(
+                            document = document,
+                            onClick = { onNavigateToReader(document.id) },
+                            onDelete = { onDelete(document.id) },
+                            isGridItem = true,
+                        )
+                    }
+                }
+                // Fill empty cell if odd count
+                if (rowDocs.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun FileCard(
     document: PdfDocumentEntity,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    isGridItem: Boolean = false,
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .padding(
+                horizontal = if (isGridItem) 0.dp else 20.dp,
+                vertical = if (isGridItem) 0.dp else 6.dp,
+            )
             .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
         shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Gold.copy(alpha = 0.12f)),
     ) {
         Row(
             modifier = Modifier.padding(12.dp),

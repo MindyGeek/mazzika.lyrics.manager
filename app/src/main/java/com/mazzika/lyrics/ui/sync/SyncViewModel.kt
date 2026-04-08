@@ -42,6 +42,10 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     private val _syncFilePath = MutableStateFlow<String?>(null)
     val syncFilePath: StateFlow<String?> = _syncFilePath.asStateFlow()
 
+    /** True when the synced file is stored as a temp file (not yet saved to catalogue). */
+    private val _isTempFile = MutableStateFlow(false)
+    val isTempFile: StateFlow<Boolean> = _isTempFile.asStateFlow()
+
     /** Page number sent by the pilot; observed by the follower's ReaderScreen. */
     private val _syncPage = MutableStateFlow<Int?>(null)
     val syncPage: StateFlow<Int?> = _syncPage.asStateFlow()
@@ -171,8 +175,10 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             if (autoSave) {
                 val finalPath = app.fileManager.moveTempToCatalog(tempPath)
                 _syncFilePath.value = finalPath
+                _isTempFile.value = false
             } else {
                 _syncFilePath.value = tempPath
+                _isTempFile.value = true
             }
         }
     }
@@ -186,9 +192,36 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             if (autoSave) {
                 val finalPath = app.fileManager.moveTempToCatalog(path)
                 _syncFilePath.value = finalPath
+                _isTempFile.value = false
             } else {
                 _syncFilePath.value = path
+                _isTempFile.value = true
             }
+        }
+    }
+
+    /** Move the temp synced file to the permanent catalogue and insert a DB record. */
+    fun saveToCatalogue() {
+        val currentPath = _syncFilePath.value ?: return
+        if (!_isTempFile.value) return
+        viewModelScope.launch {
+            val finalPath = app.fileManager.moveTempToCatalog(currentPath)
+            val file = java.io.File(finalPath)
+            val hash = app.fileManager.computeHash(file)
+            val pageCount = app.fileManager.getPageCount(file)
+            val thumbnailPath = app.fileManager.generateThumbnail(file, hash)
+            val entity = com.mazzika.lyrics.data.db.entity.PdfDocumentEntity(
+                title = file.nameWithoutExtension,
+                fileName = file.name,
+                filePath = finalPath,
+                fileHash = hash,
+                pageCount = pageCount,
+                thumbnailPath = thumbnailPath,
+                importedAt = System.currentTimeMillis(),
+            )
+            app.database.pdfDocumentDao().insert(entity)
+            _syncFilePath.value = finalPath
+            _isTempFile.value = false
         }
     }
 
@@ -253,6 +286,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _syncPage.value = null
         _isDetached.value = false
         _pilotCurrentPage.value = 0
+        _isTempFile.value = false
     }
 
     override fun onCleared() {

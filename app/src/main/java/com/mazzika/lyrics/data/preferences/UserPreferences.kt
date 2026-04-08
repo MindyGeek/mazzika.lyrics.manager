@@ -18,7 +18,7 @@ class UserPreferences(private val context: Context) {
     private val deviceNameKey = stringPreferencesKey("device_name")
 
     val theme: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
-        when (prefs[themeKey]) { "light" -> ThemeMode.LIGHT; "dark" -> ThemeMode.DARK; else -> ThemeMode.SYSTEM }
+        when (prefs[themeKey]) { "light" -> ThemeMode.LIGHT; "dark" -> ThemeMode.DARK; else -> ThemeMode.DARK }
     }
     val autoSaveSync: Flow<Boolean> = context.dataStore.data.map { prefs -> prefs[autoSaveSyncKey] ?: false }
     val deviceName: Flow<String> = context.dataStore.data.map { prefs -> prefs[deviceNameKey] ?: android.os.Build.MODEL }

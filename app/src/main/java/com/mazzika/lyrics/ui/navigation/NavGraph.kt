@@ -140,6 +140,7 @@ fun NavGraph(
             }
             val syncPageValue by syncViewModel.syncPage.collectAsState()
             val isDetached by syncViewModel.isDetached.collectAsState()
+            val isTempFile by syncViewModel.isTempFile.collectAsState()
             ReaderScreen(
                 viewModel = readerViewModel,
                 onNavigateBack = { navController.popBackStack() },
@@ -148,6 +149,8 @@ fun NavGraph(
                 syncPage = syncPageValue,
                 isDetached = isDetached,
                 onToggleDetached = { syncViewModel.toggleDetached() },
+                isTempFile = isTempFile,
+                onSaveToCatalogue = { syncViewModel.saveToCatalogue() },
             )
         }
     }

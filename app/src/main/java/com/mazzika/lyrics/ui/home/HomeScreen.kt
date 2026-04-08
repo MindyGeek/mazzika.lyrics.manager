@@ -1,10 +1,13 @@
 package com.mazzika.lyrics.ui.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -111,9 +115,19 @@ fun HomeScreen(
             }
 
             item {
+                val isTablet = LocalConfiguration.current.screenWidthDp >= 600
                 if (rootFolders.isEmpty()) {
                     EmptyFoldersState(
                         onCreateFolder = { showCreateFolderDialog = true },
+                    )
+                } else if (isTablet) {
+                    FolderGrid(
+                        folders = rootFolders,
+                        onFolderClick = { onNavigateToFolder(it.id) },
+                        onDeleteFolder = { viewModel.deleteFolder(it.id) },
+                        onRenameFolder = { folder, newName ->
+                            viewModel.renameFolder(folder.id, newName)
+                        },
                     )
                 } else {
                     FolderRow(
@@ -297,6 +311,32 @@ private fun FolderRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FolderGrid(
+    folders: List<FolderEntity>,
+    onFolderClick: (FolderEntity) -> Unit,
+    onDeleteFolder: (FolderEntity) -> Unit,
+    onRenameFolder: (FolderEntity, String) -> Unit,
+) {
+    FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        folders.forEach { folder ->
+            FolderCard(
+                folder = folder,
+                onClick = { onFolderClick(folder) },
+                onDelete = { onDeleteFolder(folder) },
+                onRename = { newName -> onRenameFolder(folder, newName) },
+            )
+        }
+    }
+}
+
 @Composable
 private fun FolderCard(
     folder: FolderEntity,
@@ -313,6 +353,7 @@ private fun FolderCard(
             .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
         shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Gold.copy(alpha = 0.12f)),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),

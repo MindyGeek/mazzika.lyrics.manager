@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -519,15 +520,43 @@ private fun FollowerState(
                 }
             }
         } else {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                discoveredEndpoints.forEach { endpoint ->
-                    DiscoveredEndpointItem(
-                        endpoint = endpoint,
-                        onJoin = { onJoin(endpoint.id) },
-                    )
+            val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+            if (isTablet) {
+                val rows = discoveredEndpoints.chunked(2)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    rows.forEach { rowEndpoints ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            rowEndpoints.forEach { endpoint ->
+                                Box(modifier = Modifier.weight(1f)) {
+                                    DiscoveredEndpointItem(
+                                        endpoint = endpoint,
+                                        onJoin = { onJoin(endpoint.id) },
+                                    )
+                                }
+                            }
+                            if (rowEndpoints.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    discoveredEndpoints.forEach { endpoint ->
+                        DiscoveredEndpointItem(
+                            endpoint = endpoint,
+                            onJoin = { onJoin(endpoint.id) },
+                        )
+                    }
                 }
             }
         }

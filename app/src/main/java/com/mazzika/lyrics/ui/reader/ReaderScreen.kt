@@ -64,6 +64,8 @@ fun ReaderScreen(
     syncPage: Int? = null,
     isDetached: Boolean = false,
     onToggleDetached: (() -> Unit)? = null,
+    isTempFile: Boolean = false,
+    onSaveToCatalogue: (() -> Unit)? = null,
 ) {
     val title by viewModel.title.collectAsState()
     val pageCount by viewModel.pageCount.collectAsState()
@@ -245,6 +247,26 @@ fun ReaderScreen(
             ) {
                 Text(
                     text = if (isDetached) "Re-synchroniser" else "Navigation libre",
+                    fontSize = 13.sp,
+                )
+            }
+        }
+
+        // Follower: Save to catalogue button (shown only when temp file)
+        if (syncMode == SyncMode.FOLLOWER && isTempFile && onSaveToCatalogue != null) {
+            Button(
+                onClick = onSaveToCatalogue,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, bottom = 80.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Gold,
+                    contentColor = Color.Black,
+                ),
+                shape = RoundedCornerShape(20.dp),
+            ) {
+                Text(
+                    text = "\uD83D\uDCBE Sauvegarder",
                     fontSize = 13.sp,
                 )
             }
