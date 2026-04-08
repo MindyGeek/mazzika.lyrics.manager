@@ -83,6 +83,7 @@ fun NavGraph(
                 onNavigateToReader = { documentId ->
                     navController.navigate(Screen.Reader.createRoute(documentId))
                 },
+                viewModel = syncViewModel,
             )
         }
 
