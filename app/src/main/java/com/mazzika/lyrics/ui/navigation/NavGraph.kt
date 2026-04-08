@@ -5,8 +5,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.ComponentActivity
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -18,14 +22,21 @@ import com.mazzika.lyrics.ui.folders.FolderDetailScreen
 import com.mazzika.lyrics.ui.home.HomeScreen
 import com.mazzika.lyrics.ui.reader.ReaderScreen
 import com.mazzika.lyrics.ui.reader.ReaderViewModel
+import com.mazzika.lyrics.ui.reader.SyncMode
 import com.mazzika.lyrics.ui.settings.SettingsScreen
+import com.mazzika.lyrics.ui.sync.SyncRole
 import com.mazzika.lyrics.ui.sync.SyncScreen
+import com.mazzika.lyrics.ui.sync.SyncViewModel
 
 @Composable
 fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
 ) {
+    // Activity-scoped SyncViewModel so it is shared between Sync and Reader screens
+    val activity = LocalContext.current as ComponentActivity
+    val syncViewModel: SyncViewModel = viewModel(activity)
+
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route,
@@ -100,10 +111,17 @@ fun NavGraph(
             ),
         ) {
             val readerViewModel: ReaderViewModel = viewModel()
+            val role by syncViewModel.role.collectAsState()
+            val syncMode = when (role) {
+                SyncRole.PILOT -> SyncMode.PILOT
+                else -> SyncMode.NONE
+            }
             ReaderScreen(
                 viewModel = readerViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSync = { navController.navigate(Screen.Sync.route) },
+                syncMode = syncMode,
+                onPageChangedForSync = { page -> syncViewModel.broadcastPageChange(page) },
             )
         }
 
@@ -120,10 +138,16 @@ fun NavGraph(
                     readerViewModel.initWithFilePath(filePath)
                 }
             }
+            val syncPageValue by syncViewModel.syncPage.collectAsState()
+            val isDetached by syncViewModel.isDetached.collectAsState()
             ReaderScreen(
                 viewModel = readerViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSync = { navController.navigate(Screen.Sync.route) },
+                syncMode = SyncMode.FOLLOWER,
+                syncPage = syncPageValue,
+                isDetached = isDetached,
+                onToggleDetached = { syncViewModel.toggleDetached() },
             )
         }
     }

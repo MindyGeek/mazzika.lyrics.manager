@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 
 enum class SyncRole { NONE, PILOT, FOLLOWER }
 
@@ -40,6 +41,18 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _syncFilePath = MutableStateFlow<String?>(null)
     val syncFilePath: StateFlow<String?> = _syncFilePath.asStateFlow()
+
+    /** Page number sent by the pilot; observed by the follower's ReaderScreen. */
+    private val _syncPage = MutableStateFlow<Int?>(null)
+    val syncPage: StateFlow<Int?> = _syncPage.asStateFlow()
+
+    /** Always tracks the latest page from the pilot, even when detached. */
+    private val _pilotCurrentPage = MutableStateFlow(0)
+    val pilotCurrentPage: StateFlow<Int> = _pilotCurrentPage.asStateFlow()
+
+    /** When true the follower navigates freely; PAGE_CHANGE is recorded but not applied. */
+    private val _isDetached = MutableStateFlow(false)
+    val isDetached: StateFlow<Boolean> = _isDetached.asStateFlow()
 
     val allDocuments: StateFlow<List<PdfDocumentEntity>> = app.database.pdfDocumentDao()
         .getAll()
@@ -78,6 +91,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             isBound = true
             observeIncomingMessages()
             observeIncomingFiles()
+            observeIncomingFilePaths()
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -108,6 +122,14 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         }?.launchIn(viewModelScope)
     }
 
+    private fun observeIncomingFilePaths() {
+        _sessionManager.value?.incomingFilePath?.onEach { pair ->
+            pair ?: return@onEach
+            val (_, path) = pair
+            handleIncomingFilePath(path)
+        }?.launchIn(viewModelScope)
+    }
+
     private fun handleMessage(endpointId: String, message: SyncMessage) {
         viewModelScope.launch {
             val manager = _sessionManager.value ?: return@launch
@@ -124,15 +146,17 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                 is SyncMessage.NeedFile -> {
                     val doc = app.database.pdfDocumentDao().getByHash(message.fileHash)
                     if (doc != null) {
-                        val fileBytes = app.fileManager.readFileBytes(doc.filePath)
-                        manager.sendFile(endpointId, fileBytes)
+                        manager.sendFile(endpointId, doc.filePath)
                     }
                 }
                 is SyncMessage.AlreadyHave -> {
                     // Follower already has the file, nothing to do
                 }
                 is SyncMessage.PageChange -> {
-                    // Page change handled elsewhere (e.g., reader)
+                    _pilotCurrentPage.value = message.page
+                    if (!_isDetached.value) {
+                        _syncPage.value = message.page
+                    }
                 }
             }
         }
@@ -150,6 +174,31 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 _syncFilePath.value = tempPath
             }
+        }
+    }
+
+    /** Called when a FILE payload is received (large PDF). */
+    fun handleIncomingFilePath(path: String) {
+        viewModelScope.launch {
+            val autoSave = app.userPreferences.autoSaveSync
+                .stateIn(viewModelScope, SharingStarted.Eagerly, false).value
+
+            if (autoSave) {
+                val finalPath = app.fileManager.moveTempToCatalog(path)
+                _syncFilePath.value = finalPath
+            } else {
+                _syncFilePath.value = path
+            }
+        }
+    }
+
+    /** Toggle detached mode. When re-attaching, jump to the pilot's current page. */
+    fun toggleDetached() {
+        val wasDetached = _isDetached.value
+        _isDetached.value = !wasDetached
+        if (wasDetached) {
+            // Re-synchronise: apply the latest pilot page
+            _syncPage.value = _pilotCurrentPage.value
         }
     }
 
@@ -201,6 +250,9 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _role.value = SyncRole.NONE
         _selectedDocument.value = null
         _syncFilePath.value = null
+        _syncPage.value = null
+        _isDetached.value = false
+        _pilotCurrentPage.value = 0
     }
 
     override fun onCleared() {

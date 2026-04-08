@@ -15,12 +15,14 @@ import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import com.google.android.gms.nearby.connection.Strategy
+import android.os.ParcelFileDescriptor
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-class NearbySessionManager(context: Context) {
+class NearbySessionManager(private val context: Context) {
 
     companion object {
         private const val TAG = "NearbySessionManager"
@@ -48,6 +50,13 @@ class NearbySessionManager(context: Context) {
 
     private val _incomingFile = MutableStateFlow<Pair<String, ByteArray>?>(null)
     val incomingFile: StateFlow<Pair<String, ByteArray>?> = _incomingFile.asStateFlow()
+
+    /** Emits the absolute path of a received FILE payload once transfer completes. */
+    private val _incomingFilePath = MutableStateFlow<Pair<String, String>?>(null)
+    val incomingFilePath: StateFlow<Pair<String, String>?> = _incomingFilePath.asStateFlow()
+
+    /** Tracks in-flight FILE payloads: payloadId -> endpointId. */
+    private val pendingFilePayloads = mutableMapOf<Long, String>()
 
     private var connectionRequestHandler: ((String, ConnectionInfo) -> Unit)? = null
 
@@ -113,16 +122,38 @@ class NearbySessionManager(context: Context) {
                     if (message != null) {
                         _incomingMessages.value = Pair(endpointId, message)
                     } else {
-                        // Not a message, treat as file bytes
+                        // Not a message, treat as file bytes (legacy / small files)
                         _incomingFile.value = Pair(endpointId, bytes)
                     }
+                }
+                Payload.Type.FILE -> {
+                    // Track this payload so we can grab the file when transfer completes
+                    pendingFilePayloads[payload.id] = endpointId
+                    Log.d(TAG, "Receiving FILE payload ${payload.id} from $endpointId")
                 }
                 else -> Log.d(TAG, "Received unsupported payload type: ${payload.type}")
             }
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
-            // No-op for now
+            if (update.status == PayloadTransferUpdate.Status.SUCCESS) {
+                val payloadId = update.payloadId
+                val senderEndpoint = pendingFilePayloads.remove(payloadId) ?: return
+                // FILE payloads are stored automatically by Nearby Connections
+                // The received file is at the location provided by the payload
+                // We need to find the file – Nearby stores it in the app's files directory
+                val receivedFile = File(context.filesDir, payloadId.toString())
+                if (receivedFile.exists()) {
+                    // Rename to a proper PDF name
+                    val destFile = File(context.filesDir, "temp/${System.currentTimeMillis()}_sync_received.pdf")
+                    destFile.parentFile?.mkdirs()
+                    receivedFile.renameTo(destFile)
+                    _incomingFilePath.value = Pair(senderEndpoint, destFile.absolutePath)
+                    Log.d(TAG, "FILE payload $payloadId completed: ${destFile.absolutePath}")
+                } else {
+                    Log.w(TAG, "FILE payload $payloadId completed but file not found at expected path")
+                }
+            }
         }
     }
 
@@ -183,9 +214,16 @@ class NearbySessionManager(context: Context) {
         }
     }
 
-    fun sendFile(endpointId: String, fileBytes: ByteArray) {
-        val payload = Payload.fromBytes(fileBytes)
-        connectionsClient.sendPayload(endpointId, payload)
+    fun sendFile(endpointId: String, filePath: String) {
+        try {
+            val file = File(filePath)
+            val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            val payload = Payload.fromFile(pfd)
+            connectionsClient.sendPayload(endpointId, payload)
+            Log.d(TAG, "Sending FILE payload to $endpointId (${file.length()} bytes)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send file to $endpointId", e)
+        }
     }
 
     fun disconnect(endpointId: String) {

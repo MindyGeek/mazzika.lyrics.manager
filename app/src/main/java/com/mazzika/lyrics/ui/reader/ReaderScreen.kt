@@ -17,15 +17,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.SyncAlt
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -45,12 +51,19 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.mazzika.lyrics.ui.theme.Gold
 import com.mazzika.lyrics.ui.theme.GoldLight
 
+enum class SyncMode { NONE, PILOT, FOLLOWER }
+
 @Composable
 fun ReaderScreen(
     viewModel: ReaderViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToSync: () -> Unit,
     modifier: Modifier = Modifier,
+    syncMode: SyncMode = SyncMode.NONE,
+    onPageChangedForSync: ((Int) -> Unit)? = null,
+    syncPage: Int? = null,
+    isDetached: Boolean = false,
+    onToggleDetached: (() -> Unit)? = null,
 ) {
     val title by viewModel.title.collectAsState()
     val pageCount by viewModel.pageCount.collectAsState()
@@ -58,6 +71,20 @@ fun ReaderScreen(
     val showToolbar by viewModel.showToolbar.collectAsState()
 
     val context = LocalContext.current
+
+    // Pilot: broadcast page changes
+    LaunchedEffect(currentPage, syncMode) {
+        if (syncMode == SyncMode.PILOT) {
+            onPageChangedForSync?.invoke(currentPage)
+        }
+    }
+
+    // Follower: apply page from pilot when not detached
+    LaunchedEffect(syncPage) {
+        if (syncMode == SyncMode.FOLLOWER && syncPage != null) {
+            viewModel.setCurrentPage(syncPage)
+        }
+    }
 
     // Immersive mode
     DisposableEffect(Unit) {
@@ -200,6 +227,26 @@ fun ReaderScreen(
                         textAlign = TextAlign.Center,
                     )
                 }
+            }
+        }
+
+        // Follower: Navigation libre / Re-synchroniser pill
+        if (syncMode == SyncMode.FOLLOWER && onToggleDetached != null) {
+            Button(
+                onClick = onToggleDetached,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 80.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isDetached) Gold else Color.White.copy(alpha = 0.15f),
+                    contentColor = if (isDetached) Color.Black else Color.White,
+                ),
+                shape = RoundedCornerShape(20.dp),
+            ) {
+                Text(
+                    text = if (isDetached) "Re-synchroniser" else "Navigation libre",
+                    fontSize = 13.sp,
+                )
             }
         }
     }
