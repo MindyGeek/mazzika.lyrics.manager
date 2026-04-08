@@ -73,7 +73,7 @@ import com.mazzika.lyrics.ui.theme.Success
 
 @Composable
 fun SyncScreen(
-    onNavigateToReaderSync: (String) -> Unit,
+    onNavigateToReaderSync: () -> Unit,
     onNavigateToReader: (Long) -> Unit,
     viewModel: SyncViewModel = viewModel(),
 ) {
@@ -128,8 +128,8 @@ fun SyncScreen(
 
     // Navigate to reader when a file is ready
     LaunchedEffect(syncFilePath) {
-        syncFilePath?.let { path ->
-            onNavigateToReaderSync(path)
+        if (syncFilePath != null) {
+            onNavigateToReaderSync()
         }
     }
 

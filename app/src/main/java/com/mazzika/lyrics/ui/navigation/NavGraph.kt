@@ -77,8 +77,8 @@ fun NavGraph(
 
         composable(Screen.Sync.route) {
             SyncScreen(
-                onNavigateToReaderSync = { filePath ->
-                    navController.navigate(Screen.ReaderSync.createRoute(filePath))
+                onNavigateToReaderSync = {
+                    navController.navigate(Screen.ReaderSync.route)
                 },
                 onNavigateToReader = { documentId ->
                     navController.navigate(Screen.Reader.createRoute(documentId))
@@ -129,17 +129,13 @@ fun NavGraph(
             )
         }
 
-        composable(
-            route = Screen.ReaderSync.route,
-            arguments = listOf(
-                navArgument("filePath") { type = NavType.StringType },
-            ),
-        ) { backStackEntry ->
-            val filePath = backStackEntry.arguments?.getString("filePath") ?: ""
+        composable(route = Screen.ReaderSync.route) {
+            val syncFilePathValue by syncViewModel.syncFilePath.collectAsState()
             val readerViewModel: ReaderViewModel = viewModel()
-            LaunchedEffect(filePath) {
-                if (filePath.isNotEmpty()) {
-                    readerViewModel.initWithFilePath(filePath)
+            LaunchedEffect(syncFilePathValue) {
+                val path = syncFilePathValue
+                if (!path.isNullOrEmpty()) {
+                    readerViewModel.initWithFilePath(path)
                 }
             }
             val syncPageValue by syncViewModel.syncPage.collectAsState()

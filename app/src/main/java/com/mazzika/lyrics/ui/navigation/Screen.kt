@@ -18,9 +18,7 @@ sealed class Screen(val route: String) {
     object Reader : Screen("reader/{documentId}") {
         fun createRoute(documentId: Long) = "reader/$documentId"
     }
-    object ReaderSync : Screen("reader_sync/{filePath}") {
-        fun createRoute(filePath: String) = "reader_sync/$filePath"
-    }
+    object ReaderSync : Screen("reader_sync")
 }
 
 data class BottomNavItem(
