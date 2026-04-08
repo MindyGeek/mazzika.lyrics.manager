@@ -24,9 +24,9 @@ Application Android pour la troupe Mazzika Band. Permet d'importer, organiser et
 ### 2.2 Catalogue
 
 - Liste centrale de tous les fichiers importés
-- Chaque entrée affiche : miniature, titre, artiste, nombre de pages, date d'import
-- Recherche par titre/artiste
-- Filtres : Tous, Récents, A-Z, Par artiste
+- Chaque entrée affiche : miniature, titre, nombre de pages, date d'import
+- Recherche par titre
+- Filtres : Récents, A-Z
 - Actions contextuelles (long press / menu 3 points) : supprimer, ajouter à un dossier
 
 ### 2.3 Dossiers

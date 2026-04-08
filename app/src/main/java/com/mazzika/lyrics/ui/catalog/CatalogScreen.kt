@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -42,7 +41,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -92,35 +90,9 @@ fun CatalogScreen(
         uri?.let { viewModel.importPdf(it) }
     }
 
-    Scaffold(
-        containerColor = DarkBackground,
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    if (!isImporting) {
-                        pdfPickerLauncher.launch(arrayOf("application/pdf"))
-                    }
-                },
-                containerColor = Gold,
-                contentColor = DarkBackground,
-                shape = CircleShape,
-            ) {
-                if (isImporting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = DarkBackground,
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Icon(imageVector = Icons.Filled.Add, contentDescription = "Importer un PDF")
-                }
-            }
-        },
-    ) { innerPadding ->
+    Box(modifier = Modifier.fillMaxSize().background(DarkBackground)) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 80.dp),
         ) {
             // Header
@@ -157,6 +129,31 @@ fun CatalogScreen(
                         onDelete = { viewModel.deleteDocument(document.id) },
                     )
                 }
+            }
+        }
+
+        // FAB Import
+        FloatingActionButton(
+            onClick = {
+                if (!isImporting) {
+                    pdfPickerLauncher.launch(arrayOf("application/pdf"))
+                }
+            },
+            containerColor = Gold,
+            contentColor = DarkBackground,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+        ) {
+            if (isImporting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = DarkBackground,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Icon(imageVector = Icons.Filled.Add, contentDescription = "Importer un PDF")
             }
         }
     }

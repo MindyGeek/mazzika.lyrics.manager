@@ -6,7 +6,32 @@
       "Bash(echo \"Server started on port 8888, PID: $!\")",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(/usr/libexec/java_home)",
+      "Bash(export JAVA_HOME=$\\(/usr/libexec/java_home 2>/dev/null || echo \"\"\\))",
+      "Bash(java -version)",
+      "Read(//Library/Java/JavaVirtualMachines/**)",
+      "Read(//Users/mac/Library/Java/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(export JAVA_HOME)",
+      "Bash(./gradlew --version)",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/com/google/devtools/ksp/com.google.devtools.ksp.gradle.plugin/maven-metadata.xml\")",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-gradle-plugin/maven-metadata.xml\")",
+      "Bash(JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ./gradlew assembleDebug)",
+      "Bash(curl -sL \"https://fonts.gstatic.com/s/playfairdisplay/v37/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvUDQZNLo_U2r.woff2\" -o playfair_display_bold_check.woff2)",
+      "Bash(curl -sL \"https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap\" -A \"Mozilla/5.0\")",
+      "Bash(export JAVA_HOME=$\\(/usr/libexec/java_home \\))",
+      "Bash(export JAVA_HOME=\"/Library/Java/JavaVirtualMachines/$\\(ls /Library/Java/JavaVirtualMachines/)",
+      "Bash(/usr/bin/java -version)",
+      "Read(//Users/mac/.sdkman/candidates/**)",
+      "Read(//opt/**)",
+      "Bash(export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\")",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
+      "Bash(JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" /Users/mac/Desktop/Dev/Mazzika/Lyrics/gradlew assembleDebug)",
+      "Bash(JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" /Users/mac/Desktop/Dev/Mazzika/Lyrics/gradlew assembleDebug --stacktrace)",
+      "Bash(./gradlew clean:*)"
     ]
   }
 }

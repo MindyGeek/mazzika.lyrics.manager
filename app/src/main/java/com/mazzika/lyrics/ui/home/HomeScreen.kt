@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -40,7 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -85,23 +83,9 @@ fun HomeScreen(
 
     var showCreateFolderDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = DarkBackground,
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateFolderDialog = true },
-                containerColor = Gold,
-                contentColor = DarkBackground,
-                shape = CircleShape,
-            ) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = "Créer un dossier")
-            }
-        },
-    ) { innerPadding ->
+    Box(modifier = Modifier.fillMaxSize().background(DarkBackground)) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 80.dp),
         ) {
             // Header
@@ -115,9 +99,9 @@ fun HomeScreen(
             // Quick action chips
             item {
                 QuickActionChips(
-                    onCreateSession = { /* TODO */ },
+                    onCreateSession = onNavigateToSync,
                     onJoin = onNavigateToSync,
-                    onImport = { /* TODO */ },
+                    onImport = { /* handled by catalog */ },
                 )
             }
 
@@ -161,6 +145,19 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+
+        // FAB
+        FloatingActionButton(
+            onClick = { showCreateFolderDialog = true },
+            containerColor = Gold,
+            contentColor = DarkBackground,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+        ) {
+            Icon(imageVector = Icons.Filled.Add, contentDescription = "Créer un dossier")
         }
     }
 
