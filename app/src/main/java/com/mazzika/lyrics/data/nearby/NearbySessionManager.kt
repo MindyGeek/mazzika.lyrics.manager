@@ -55,8 +55,8 @@ class NearbySessionManager(private val context: Context) {
     private val _incomingFilePath = MutableStateFlow<Pair<String, String>?>(null)
     val incomingFilePath: StateFlow<Pair<String, String>?> = _incomingFilePath.asStateFlow()
 
-    /** Tracks in-flight FILE payloads: payloadId -> endpointId. */
-    private val pendingFilePayloads = mutableMapOf<Long, String>()
+    /** Tracks in-flight FILE payloads: payloadId -> (endpointId, payload). */
+    private val pendingFilePayloads = mutableMapOf<Long, Pair<String, Payload>>()
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
@@ -117,8 +117,8 @@ class NearbySessionManager(private val context: Context) {
                     }
                 }
                 Payload.Type.FILE -> {
-                    // Track this payload so we can grab the file when transfer completes
-                    pendingFilePayloads[payload.id] = endpointId
+                    // Track this payload AND the payload itself so we can grab the file when transfer completes
+                    pendingFilePayloads[payload.id] = Pair(endpointId, payload)
                     Log.d(TAG, "Receiving FILE payload ${payload.id} from $endpointId")
                 }
                 else -> Log.d(TAG, "Received unsupported payload type: ${payload.type}")
@@ -126,23 +126,39 @@ class NearbySessionManager(private val context: Context) {
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
+            val payloadId = update.payloadId
+            Log.d(TAG, "Payload transfer update: id=$payloadId, status=${update.status}, " +
+                "bytes=${update.bytesTransferred}/${update.totalBytes}")
+
             if (update.status == PayloadTransferUpdate.Status.SUCCESS) {
-                val payloadId = update.payloadId
-                val senderEndpoint = pendingFilePayloads.remove(payloadId) ?: return
-                // FILE payloads are stored automatically by Nearby Connections
-                // The received file is at the location provided by the payload
-                // We need to find the file – Nearby stores it in the app's files directory
-                val receivedFile = File(context.filesDir, payloadId.toString())
-                if (receivedFile.exists()) {
-                    // Rename to a proper PDF name
+                val (senderEndpoint, payload) = pendingFilePayloads.remove(payloadId) ?: return
+
+                // Get the received file from the payload
+                val receivedFile = payload.asFile()?.asJavaFile()
+                if (receivedFile != null && receivedFile.exists()) {
                     val destFile = File(context.filesDir, "temp/${System.currentTimeMillis()}_sync_received.pdf")
                     destFile.parentFile?.mkdirs()
                     receivedFile.renameTo(destFile)
                     _incomingFilePath.value = Pair(senderEndpoint, destFile.absolutePath)
                     Log.d(TAG, "FILE payload $payloadId completed: ${destFile.absolutePath}")
                 } else {
-                    Log.w(TAG, "FILE payload $payloadId completed but file not found at expected path")
+                    // Fallback: try the legacy path
+                    val legacyFile = File(context.filesDir, payloadId.toString())
+                    Log.d(TAG, "Trying legacy path: ${legacyFile.absolutePath}, exists=${legacyFile.exists()}")
+                    if (legacyFile.exists()) {
+                        val destFile = File(context.filesDir, "temp/${System.currentTimeMillis()}_sync_received.pdf")
+                        destFile.parentFile?.mkdirs()
+                        legacyFile.renameTo(destFile)
+                        _incomingFilePath.value = Pair(senderEndpoint, destFile.absolutePath)
+                        Log.d(TAG, "FILE payload $payloadId completed (legacy): ${destFile.absolutePath}")
+                    } else {
+                        Log.e(TAG, "FILE payload $payloadId completed but file not found! " +
+                            "receivedFile=${receivedFile?.absolutePath}, legacyPath=${legacyFile.absolutePath}")
+                    }
                 }
+            } else if (update.status == PayloadTransferUpdate.Status.FAILURE) {
+                pendingFilePayloads.remove(payloadId)
+                Log.e(TAG, "FILE payload $payloadId FAILED")
             }
         }
     }
