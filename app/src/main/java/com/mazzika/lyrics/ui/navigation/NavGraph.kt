@@ -18,6 +18,7 @@ import com.mazzika.lyrics.ui.folders.FolderDetailScreen
 import com.mazzika.lyrics.ui.home.HomeScreen
 import com.mazzika.lyrics.ui.reader.ReaderScreen
 import com.mazzika.lyrics.ui.reader.ReaderViewModel
+import com.mazzika.lyrics.ui.settings.SettingsScreen
 
 @Composable
 fun NavGraph(
@@ -67,7 +68,7 @@ fun NavGraph(
         }
 
         composable(Screen.Settings.route) {
-            PlaceholderScreen(name = "Réglages")
+            SettingsScreen()
         }
 
         composable(
