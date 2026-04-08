@@ -80,6 +80,9 @@ fun NavGraph(
                 onNavigateToReaderSync = { filePath ->
                     navController.navigate(Screen.ReaderSync.createRoute(filePath))
                 },
+                onNavigateToReader = { documentId ->
+                    navController.navigate(Screen.Reader.createRoute(documentId))
+                },
             )
         }
 

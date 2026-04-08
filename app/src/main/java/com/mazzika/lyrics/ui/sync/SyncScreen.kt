@@ -74,6 +74,7 @@ import com.mazzika.lyrics.ui.theme.Success
 @Composable
 fun SyncScreen(
     onNavigateToReaderSync: (String) -> Unit,
+    onNavigateToReader: (Long) -> Unit,
     viewModel: SyncViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -150,6 +151,9 @@ fun SyncScreen(
                 selectedDocument = selectedDocument,
                 connectedEndpoints = connectedEndpoints,
                 innerPadding = innerPadding,
+                onOpenReader = {
+                    selectedDocument?.let { doc -> onNavigateToReader(doc.id) }
+                },
                 onStop = { viewModel.stopSession() },
             )
             SyncRole.FOLLOWER -> FollowerState(
@@ -359,6 +363,7 @@ private fun PilotState(
     selectedDocument: PdfDocumentEntity?,
     connectedEndpoints: List<NearbySessionManager.EndpointInfo>,
     innerPadding: PaddingValues,
+    onOpenReader: () -> Unit,
     onStop: () -> Unit,
 ) {
     Column(
@@ -456,6 +461,28 @@ private fun PilotState(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Open reader button
+        Button(
+            onClick = onOpenReader,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Gold,
+                contentColor = DarkBackground,
+            ),
+            shape = RoundedCornerShape(10.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.MusicNote,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(20.dp)
+                    .padding(end = 4.dp),
+            )
+            Text("Ouvrir le lecteur", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Stop button
         OutlinedButton(
