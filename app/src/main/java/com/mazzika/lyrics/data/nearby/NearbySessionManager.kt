@@ -116,10 +116,30 @@ class NearbySessionManager(private val context: Context) {
                         _incomingFile.value = Pair(endpointId, bytes)
                     }
                 }
+                Payload.Type.STREAM -> {
+                    Log.d(TAG, "Receiving STREAM payload ${payload.id} from $endpointId")
+                    val inputStream = payload.asStream()?.asInputStream()
+                    if (inputStream != null) {
+                        Thread {
+                            try {
+                                val destFile = File(context.filesDir, "temp/${System.currentTimeMillis()}_sync_received.pdf")
+                                destFile.parentFile?.mkdirs()
+                                destFile.outputStream().use { output ->
+                                    inputStream.use { input ->
+                                        input.copyTo(output)
+                                    }
+                                }
+                                Log.d(TAG, "STREAM payload ${payload.id} saved: ${destFile.absolutePath} (${destFile.length()} bytes)")
+                                _incomingFilePath.value = Pair(endpointId, destFile.absolutePath)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to save STREAM payload ${payload.id}", e)
+                            }
+                        }.start()
+                    }
+                }
                 Payload.Type.FILE -> {
-                    // Track this payload AND the payload itself so we can grab the file when transfer completes
                     pendingFilePayloads[payload.id] = Pair(endpointId, payload)
-                    Log.d(TAG, "Receiving FILE payload ${payload.id} from $endpointId")
+                    Log.d(TAG, "Receiving FILE payload ${payload.id} from $endpointId (fallback)")
                 }
                 else -> Log.d(TAG, "Received unsupported payload type: ${payload.type}")
             }
@@ -226,9 +246,9 @@ class NearbySessionManager(private val context: Context) {
         try {
             val file = File(filePath)
             val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-            val payload = Payload.fromFile(pfd)
+            val payload = Payload.fromStream(pfd)
             connectionsClient.sendPayload(endpointId, payload)
-            Log.d(TAG, "Sending FILE payload to $endpointId (${file.length()} bytes)")
+            Log.d(TAG, "Sending STREAM payload to $endpointId (${file.length()} bytes)")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send file to $endpointId", e)
         }
