@@ -135,26 +135,28 @@ class NearbySessionManager(private val context: Context) {
 
                 // Get the received file from the payload
                 val receivedFile = payload.asFile()?.asJavaFile()
-                if (receivedFile != null && receivedFile.exists()) {
+                val legacyFile = File(context.filesDir, payloadId.toString())
+                val sourceFile = when {
+                    receivedFile != null && receivedFile.exists() -> receivedFile
+                    legacyFile.exists() -> legacyFile
+                    else -> null
+                }
+
+                if (sourceFile != null) {
                     val destFile = File(context.filesDir, "temp/${System.currentTimeMillis()}_sync_received.pdf")
                     destFile.parentFile?.mkdirs()
-                    receivedFile.renameTo(destFile)
-                    _incomingFilePath.value = Pair(senderEndpoint, destFile.absolutePath)
-                    Log.d(TAG, "FILE payload $payloadId completed: ${destFile.absolutePath}")
-                } else {
-                    // Fallback: try the legacy path
-                    val legacyFile = File(context.filesDir, payloadId.toString())
-                    Log.d(TAG, "Trying legacy path: ${legacyFile.absolutePath}, exists=${legacyFile.exists()}")
-                    if (legacyFile.exists()) {
-                        val destFile = File(context.filesDir, "temp/${System.currentTimeMillis()}_sync_received.pdf")
-                        destFile.parentFile?.mkdirs()
-                        legacyFile.renameTo(destFile)
+                    try {
+                        sourceFile.copyTo(destFile, overwrite = true)
+                        sourceFile.delete()
+                        Log.d(TAG, "FILE payload $payloadId completed: ${destFile.absolutePath} (${destFile.length()} bytes)")
                         _incomingFilePath.value = Pair(senderEndpoint, destFile.absolutePath)
-                        Log.d(TAG, "FILE payload $payloadId completed (legacy): ${destFile.absolutePath}")
-                    } else {
-                        Log.e(TAG, "FILE payload $payloadId completed but file not found! " +
-                            "receivedFile=${receivedFile?.absolutePath}, legacyPath=${legacyFile.absolutePath}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "FILE payload $payloadId: failed to copy file", e)
                     }
+                } else {
+                    Log.e(TAG, "FILE payload $payloadId completed but source file not found! " +
+                        "asJavaFile=${receivedFile?.absolutePath} (exists=${receivedFile?.exists()}), " +
+                        "legacy=${legacyFile.absolutePath} (exists=${legacyFile.exists()})")
                 }
             } else if (update.status == PayloadTransferUpdate.Status.FAILURE) {
                 pendingFilePayloads.remove(payloadId)

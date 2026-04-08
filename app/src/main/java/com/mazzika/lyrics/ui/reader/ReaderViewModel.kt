@@ -2,6 +2,7 @@ package com.mazzika.lyrics.ui.reader
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.util.Log
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import androidx.lifecycle.AndroidViewModel
@@ -72,6 +73,7 @@ class ReaderViewModel(
         withContext(Dispatchers.IO) {
             try {
                 val file = File(path)
+                Log.d("ReaderViewModel", "openRenderer: path=$path, exists=${file.exists()}, size=${if (file.exists()) file.length() else -1}")
                 if (!file.exists()) return@withContext
                 val fd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                 val pdfRenderer = PdfRenderer(fd)
@@ -80,8 +82,9 @@ class ReaderViewModel(
                     renderer = pdfRenderer
                     _pageCount.value = pdfRenderer.pageCount
                 }
-            } catch (_: Exception) {
-                // File might not exist or be corrupted
+                Log.d("ReaderViewModel", "openRenderer: success, pageCount=${pdfRenderer.pageCount}")
+            } catch (e: Exception) {
+                Log.e("ReaderViewModel", "openRenderer: failed", e)
             }
         }
     }

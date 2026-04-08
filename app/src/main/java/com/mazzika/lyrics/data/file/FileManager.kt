@@ -38,7 +38,8 @@ class FileManager(private val context: Context) {
     suspend fun moveTempToCatalog(tempPath: String): String = withContext(Dispatchers.IO) {
         val tempFile = File(tempPath)
         val destFile = File(pdfsDir, tempFile.name)
-        tempFile.renameTo(destFile)
+        tempFile.copyTo(destFile, overwrite = true)
+        tempFile.delete()
         destFile.absolutePath
     }
 
