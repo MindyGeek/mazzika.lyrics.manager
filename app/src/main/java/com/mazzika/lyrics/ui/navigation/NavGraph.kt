@@ -19,6 +19,7 @@ import com.mazzika.lyrics.ui.home.HomeScreen
 import com.mazzika.lyrics.ui.reader.ReaderScreen
 import com.mazzika.lyrics.ui.reader.ReaderViewModel
 import com.mazzika.lyrics.ui.settings.SettingsScreen
+import com.mazzika.lyrics.ui.sync.SyncScreen
 
 @Composable
 fun NavGraph(
@@ -64,7 +65,11 @@ fun NavGraph(
         }
 
         composable(Screen.Sync.route) {
-            PlaceholderScreen(name = "Sync")
+            SyncScreen(
+                onNavigateToReaderSync = { filePath ->
+                    navController.navigate(Screen.ReaderSync.createRoute(filePath))
+                },
+            )
         }
 
         composable(Screen.Settings.route) {
