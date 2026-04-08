@@ -104,10 +104,19 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    init {
-        val intent = Intent(application, NearbyService::class.java)
-        application.startForegroundService(intent)
-        application.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+    private fun startService() {
+        if (isBound) return
+        val intent = Intent(app, NearbyService::class.java)
+        app.startForegroundService(intent)
+        app.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    private fun stopService() {
+        if (!isBound) return
+        app.unbindService(serviceConnection)
+        app.stopService(Intent(app, NearbyService::class.java))
+        _sessionManager.value = null
+        isBound = false
     }
 
     private fun observeIncomingMessages() {
@@ -238,6 +247,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     fun startAsPilot(document: PdfDocumentEntity) {
         _selectedDocument.value = document
         _role.value = SyncRole.PILOT
+        startService()
         val deviceName = app.userPreferences.deviceName
             .stateIn(viewModelScope, SharingStarted.Eagerly, android.os.Build.MODEL).value
         viewModelScope.launch {
@@ -247,6 +257,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startAsFollower() {
         _role.value = SyncRole.FOLLOWER
+        startService()
         viewModelScope.launch {
             _sessionManager.value?.startDiscovery()
         }
@@ -280,6 +291,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             stopDiscovery()
             disconnectAll()
         }
+        stopService()
         _role.value = SyncRole.NONE
         _selectedDocument.value = null
         _syncFilePath.value = null
@@ -291,9 +303,6 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
-        if (isBound) {
-            getApplication<Application>().unbindService(serviceConnection)
-            isBound = false
-        }
+        stopService()
     }
 }

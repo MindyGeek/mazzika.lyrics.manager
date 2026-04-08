@@ -1,5 +1,10 @@
 package com.mazzika.lyrics.ui.sync
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -40,13 +45,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
 import com.mazzika.lyrics.data.nearby.NearbySessionManager
@@ -66,12 +76,57 @@ fun SyncScreen(
     onNavigateToReaderSync: (String) -> Unit,
     viewModel: SyncViewModel = viewModel(),
 ) {
+    val context = LocalContext.current
     val role by viewModel.role.collectAsState()
     val selectedDocument by viewModel.selectedDocument.collectAsState()
     val syncFilePath by viewModel.syncFilePath.collectAsState()
     val allDocuments by viewModel.allDocuments.collectAsState()
     val connectedEndpoints by viewModel.connectedEndpoints.collectAsState()
     val discoveredEndpoints by viewModel.discoveredEndpoints.collectAsState()
+
+    // Build required permissions based on API level
+    val requiredPermissions = remember {
+        buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                add(Manifest.permission.BLUETOOTH_ADVERTISE)
+                add(Manifest.permission.BLUETOOTH_CONNECT)
+                add(Manifest.permission.BLUETOOTH_SCAN)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.NEARBY_WIFI_DEVICES)
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+            } else {
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
+        }
+    }
+
+    var pendingAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results ->
+        val allGranted = results.values.all { it }
+        if (allGranted) {
+            pendingAction?.invoke()
+        }
+        pendingAction = null
+    }
+
+    fun requestPermissionsAndRun(action: () -> Unit) {
+        val allGranted = requiredPermissions.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (allGranted) {
+            action()
+        } else {
+            pendingAction = action
+            permissionLauncher.launch(requiredPermissions.toTypedArray())
+        }
+    }
 
     // Navigate to reader when a file is ready
     LaunchedEffect(syncFilePath) {
@@ -87,8 +142,12 @@ fun SyncScreen(
             SyncRole.NONE -> NoneState(
                 allDocuments = allDocuments,
                 innerPadding = innerPadding,
-                onCreateSession = { doc -> viewModel.startAsPilot(doc) },
-                onJoinSession = { viewModel.startAsFollower() },
+                onCreateSession = { doc ->
+                    requestPermissionsAndRun { viewModel.startAsPilot(doc) }
+                },
+                onJoinSession = {
+                    requestPermissionsAndRun { viewModel.startAsFollower() }
+                },
             )
             SyncRole.PILOT -> PilotState(
                 selectedDocument = selectedDocument,
