@@ -96,11 +96,8 @@ fun SyncScreen(
                 add(Manifest.permission.NEARBY_WIFI_DEVICES)
                 add(Manifest.permission.POST_NOTIFICATIONS)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                add(Manifest.permission.ACCESS_FINE_LOCATION)
-            } else {
-                add(Manifest.permission.ACCESS_COARSE_LOCATION)
-            }
+            // Nearby Connections needs FINE_LOCATION on all API levels
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
 
@@ -153,7 +150,6 @@ fun SyncScreen(
                 selectedDocument = selectedDocument,
                 connectedEndpoints = connectedEndpoints,
                 innerPadding = innerPadding,
-                onAnnounce = { viewModel.announcePilotSession() },
                 onStop = { viewModel.stopSession() },
             )
             SyncRole.FOLLOWER -> FollowerState(
@@ -363,7 +359,6 @@ private fun PilotState(
     selectedDocument: PdfDocumentEntity?,
     connectedEndpoints: List<NearbySessionManager.EndpointInfo>,
     innerPadding: PaddingValues,
-    onAnnounce: () -> Unit,
     onStop: () -> Unit,
 ) {
     Column(
@@ -461,21 +456,6 @@ private fun PilotState(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Announce button
-        Button(
-            onClick = onAnnounce,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = GoldDeep,
-                contentColor = DarkTextPrimary,
-            ),
-            shape = RoundedCornerShape(10.dp),
-        ) {
-            Text("Annoncer la partition", fontSize = 15.sp)
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         // Stop button
         OutlinedButton(

@@ -58,21 +58,11 @@ class NearbySessionManager(private val context: Context) {
     /** Tracks in-flight FILE payloads: payloadId -> endpointId. */
     private val pendingFilePayloads = mutableMapOf<Long, String>()
 
-    private var connectionRequestHandler: ((String, ConnectionInfo) -> Unit)? = null
-
-    fun setConnectionRequestHandler(handler: (endpointId: String, info: ConnectionInfo) -> Unit) {
-        connectionRequestHandler = handler
-    }
-
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            val handler = connectionRequestHandler
-            if (handler != null) {
-                handler(endpointId, info)
-            } else {
-                // Auto-accept connections
-                connectionsClient.acceptConnection(endpointId, payloadCallback)
-            }
+            // Always auto-accept connections
+            Log.d(TAG, "Connection initiated from ${info.endpointName} ($endpointId), auto-accepting")
+            connectionsClient.acceptConnection(endpointId, payloadCallback)
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {

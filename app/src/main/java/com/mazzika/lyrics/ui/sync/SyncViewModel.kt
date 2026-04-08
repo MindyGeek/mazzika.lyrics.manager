@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
@@ -87,21 +88,30 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         )
 
     private var isBound = false
+    private val _serviceReady = MutableStateFlow(false)
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             val binder = service as NearbyService.LocalBinder
             _sessionManager.value = binder.getSessionManager()
             isBound = true
+            _serviceReady.value = true
             observeIncomingMessages()
             observeIncomingFiles()
             observeIncomingFilePaths()
+            observeConnectedEndpoints()
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
             _sessionManager.value = null
             isBound = false
+            _serviceReady.value = false
         }
+    }
+
+    private suspend fun awaitServiceReady() {
+        if (_serviceReady.value) return
+        _serviceReady.first { it }
     }
 
     private fun startService() {
@@ -117,6 +127,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         app.stopService(Intent(app, NearbyService::class.java))
         _sessionManager.value = null
         isBound = false
+        _serviceReady.value = false
     }
 
     private fun observeIncomingMessages() {
@@ -248,9 +259,9 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _selectedDocument.value = document
         _role.value = SyncRole.PILOT
         startService()
-        val deviceName = app.userPreferences.deviceName
-            .stateIn(viewModelScope, SharingStarted.Eagerly, android.os.Build.MODEL).value
         viewModelScope.launch {
+            awaitServiceReady()
+            val deviceName = app.userPreferences.deviceName.first()
             _sessionManager.value?.startAdvertising(deviceName)
         }
     }
@@ -259,6 +270,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _role.value = SyncRole.FOLLOWER
         startService()
         viewModelScope.launch {
+            awaitServiceReady()
             _sessionManager.value?.startDiscovery()
         }
     }
@@ -273,16 +285,20 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _sessionManager.value?.broadcastMessage(SyncMessage.PageChange(page))
     }
 
-    fun announcePilotSession() {
-        val doc = _selectedDocument.value ?: return
-        viewModelScope.launch {
-            val message = SyncMessage.SessionInfo(
-                title = doc.title,
-                pageCount = doc.pageCount,
-                fileHash = doc.fileHash,
-            )
-            _sessionManager.value?.broadcastMessage(message)
-        }
+    private fun observeConnectedEndpoints() {
+        _sessionManager.value?.connectedEndpoints?.onEach { endpoints ->
+            if (_role.value == SyncRole.PILOT) {
+                val doc = _selectedDocument.value ?: return@onEach
+                val message = SyncMessage.SessionInfo(
+                    title = doc.title,
+                    pageCount = doc.pageCount,
+                    fileHash = doc.fileHash,
+                )
+                endpoints.forEach { endpoint ->
+                    _sessionManager.value?.sendMessage(endpoint.id, message)
+                }
+            }
+        }?.launchIn(viewModelScope)
     }
 
     fun stopSession() {
