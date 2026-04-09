@@ -1,10 +1,9 @@
 package com.mazzika.lyrics.ui.catalog
 
-import android.graphics.BitmapFactory
+// thumbnail imports removed
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,8 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+// unused imports removed
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,7 +71,7 @@ import com.mazzika.lyrics.ui.theme.DarkTextPrimary
 import com.mazzika.lyrics.ui.theme.DarkTextSecondary
 import com.mazzika.lyrics.ui.theme.Gold
 import com.mazzika.lyrics.ui.theme.GoldDeep
-import java.io.File
+// File import removed
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -338,7 +336,7 @@ private fun FileCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Thumbnail
-            DocumentThumbnail(thumbnailPath = document.thumbnailPath)
+            DocumentThumbnail()
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -452,14 +450,7 @@ private fun AddToFolderDialog(
 }
 
 @Composable
-private fun DocumentThumbnail(thumbnailPath: String) {
-    val bitmap = remember(thumbnailPath) {
-        runCatching {
-            val file = File(thumbnailPath)
-            if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
-        }.getOrNull()
-    }
-
+private fun DocumentThumbnail() {
     Box(
         modifier = Modifier
             .size(56.dp)
@@ -467,21 +458,12 @@ private fun DocumentThumbnail(thumbnailPath: String) {
             .background(DarkSurfaceElevated),
         contentAlignment = Alignment.Center,
     ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Filled.MusicNote,
-                contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(28.dp),
-            )
-        }
+        Icon(
+            imageVector = Icons.Filled.MusicNote,
+            contentDescription = null,
+            tint = Gold,
+            modifier = Modifier.size(28.dp),
+        )
     }
 }
 
