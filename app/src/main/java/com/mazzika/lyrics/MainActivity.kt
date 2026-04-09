@@ -61,7 +61,8 @@ class MainActivity : ComponentActivity() {
 
                 val mainTabRoutes = bottomNavItems.map { it.screen.route }.toSet()
                 val isReaderScreen = currentRoute?.startsWith("reader") == true || currentRoute == Screen.ReaderSync.route
-                val showBottomBar = !isReaderScreen
+                val isSettingsScreen = currentRoute == Screen.Settings.route
+                val showBottomBar = !isReaderScreen && !isSettingsScreen
 
                 val screenInfo = getScreenInfo(currentRoute)
 
@@ -91,6 +92,8 @@ class MainActivity : ComponentActivity() {
                                     title = screenInfo.title,
                                     showBackButton = screenInfo.showBackButton,
                                     onBackClick = { navController.popBackStack() },
+                                    onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                                    showSettingsButton = (currentRoute != Screen.Settings.route),
                                     folderName = if (currentRoute?.startsWith("folder/") == true) currentFolderName else null,
                                     folderIcon = if (currentRoute?.startsWith("folder/") == true) currentFolderIcon else null,
                                 )

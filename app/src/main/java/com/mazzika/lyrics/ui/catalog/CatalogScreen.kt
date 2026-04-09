@@ -105,7 +105,7 @@ fun CatalogScreen(
     Box(modifier = Modifier.fillMaxSize().background(DarkBackground)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 80.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
         ) {
             // Search bar
             item {

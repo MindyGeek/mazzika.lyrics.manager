@@ -112,7 +112,7 @@ fun HomeScreen(
     Box(modifier = Modifier.fillMaxSize().background(DarkBackground)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 24.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
         ) {
             // Action cards row
             item {

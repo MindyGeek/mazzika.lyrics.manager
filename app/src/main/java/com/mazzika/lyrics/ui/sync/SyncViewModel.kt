@@ -326,7 +326,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         val wasDetached = _isDetached.value
         _isDetached.value = !wasDetached
         if (wasDetached) {
-            // Re-synchronise: apply the latest pilot page
+            // Re-synchronise: force syncPage update even if same value
+            _syncPage.value = null
             _syncPage.value = _pilotCurrentPage.value
         }
     }
