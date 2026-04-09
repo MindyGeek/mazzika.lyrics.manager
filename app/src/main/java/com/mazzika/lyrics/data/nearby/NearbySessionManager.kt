@@ -227,6 +227,9 @@ class NearbySessionManager(private val context: Context) {
     fun stopDiscovery() {
         connectionsClient.stopDiscovery()
         _isDiscovering.value = false
+    }
+
+    fun clearDiscoveredEndpoints() {
         _discoveredEndpoints.value = emptyList()
     }
 

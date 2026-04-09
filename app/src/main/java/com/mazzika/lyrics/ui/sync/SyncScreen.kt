@@ -982,56 +982,9 @@ private fun JoinSessionDialog(
                     return@Column
                 }
 
-                // Searching indicator
-                if (isSearching) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            color = Gold,
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        Text(
-                            text = "Recherche de sessions...",
-                            color = DarkTextSecondary,
-                            fontSize = 13.sp,
-                        )
-                    }
-                }
-
-                // Relancer button
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(
-                        onClick = onRestart,
-                        enabled = !isSearching,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = null,
-                            tint = if (!isSearching) Gold else DarkTextMuted,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Relancer",
-                            color = if (!isSearching) Gold else DarkTextMuted,
-                            fontSize = 13.sp,
-                        )
-                    }
-                }
-
-                // Discovered sessions list
+                // Central zone: searching OR no results OR sessions list
                 if (discoveredEndpoints.isEmpty()) {
+                    // Centered content: loading or "no sessions"
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1039,7 +992,28 @@ private fun JoinSessionDialog(
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            if (discoveryTimedOut) {
+                            if (isSearching) {
+                                // Loading state: spinner + text
+                                CircularProgressIndicator(
+                                    color = Gold,
+                                    modifier = Modifier.size(36.dp),
+                                    strokeWidth = 3.dp,
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Recherche de sessions...",
+                                    color = DarkTextSecondary,
+                                    fontSize = 14.sp,
+                                )
+                            } else if (discoveryTimedOut) {
+                                // No results: icon + text
+                                Icon(
+                                    imageVector = Icons.Filled.Wifi,
+                                    contentDescription = null,
+                                    tint = DarkTextMuted.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(48.dp),
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
                                 Text(
                                     text = "Aucune session trouvée",
                                     color = DarkTextSecondary,
@@ -1048,13 +1022,13 @@ private fun JoinSessionDialog(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Vérifiez que le chef de pupitre diffuse une session, puis relancez la recherche",
+                                    text = "Vérifiez que le chef de pupitre diffuse une session",
                                     color = DarkTextMuted,
                                     fontSize = 13.sp,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(horizontal = 16.dp),
                                 )
-                            } else if (!isSearching) {
+                            } else {
                                 Text(
                                     text = "Appuyez sur Relancer pour chercher",
                                     color = DarkTextMuted,
@@ -1064,6 +1038,29 @@ private fun JoinSessionDialog(
                         }
                     }
                 } else {
+                    // Searching indicator when sessions already found
+                    if (isSearching) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            CircularProgressIndicator(
+                                color = Gold,
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Text(
+                                text = "Recherche en cours...",
+                                color = DarkTextMuted,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+
+                    // Discovered sessions list
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -1078,7 +1075,26 @@ private fun JoinSessionDialog(
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            // Relancer button (right of Annuler)
+            TextButton(
+                onClick = onRestart,
+                enabled = !isSearching,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Refresh,
+                    contentDescription = null,
+                    tint = if (!isSearching) Gold else DarkTextMuted,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Relancer",
+                    color = if (!isSearching) Gold else DarkTextMuted,
+                    fontSize = 13.sp,
+                )
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Annuler", color = DarkTextMuted)

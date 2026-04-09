@@ -367,13 +367,14 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             delay(DISCOVERY_TIMEOUT_SECONDS * 1000L)
             _isSearching.value = false
             _discoveryTimedOut.value = true
-            _sessionManager.value?.stopDiscovery()
+            // Don't stop discovery — keep listening for onEndpointLost
         }
     }
 
     fun restartDiscovery() {
         discoveryTimeoutJob?.cancel()
         _sessionManager.value?.stopDiscovery()
+        _sessionManager.value?.clearDiscoveredEndpoints()
         startDiscoveryWithTimeout()
     }
 
