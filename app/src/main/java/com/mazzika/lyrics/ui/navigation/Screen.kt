@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Catalog : Screen("catalog")
+    object Folders : Screen("folders")
     object Sync : Screen("sync")
     object Settings : Screen("settings")
     object FolderDetail : Screen("folder/{folderId}") {
@@ -45,6 +46,7 @@ fun getScreenInfo(route: String?): ScreenInfo {
         route == null -> ScreenInfo("Mazzika", showBackButton = false, showTopBar = true)
         route == Screen.Home.route -> ScreenInfo("Mazzika", showBackButton = false, showTopBar = true)
         route == Screen.Catalog.route -> ScreenInfo("Catalogue", showBackButton = false, showTopBar = true)
+        route == Screen.Folders.route -> ScreenInfo("Dossiers", showBackButton = false, showTopBar = true)
         route == Screen.Sync.route -> ScreenInfo("Session", showBackButton = false, showTopBar = true)
         route == Screen.Settings.route -> ScreenInfo("Paramètres", showBackButton = false, showTopBar = true)
         route.startsWith("folder/") -> ScreenInfo("Dossier", showBackButton = true, showTopBar = true)

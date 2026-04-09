@@ -60,7 +60,8 @@ class MainActivity : ComponentActivity() {
                 val currentRoute = navBackStackEntry?.destination?.route
 
                 val mainTabRoutes = bottomNavItems.map { it.screen.route }.toSet()
-                val showBottomBar = currentRoute in mainTabRoutes
+                val isReaderScreen = currentRoute?.startsWith("reader") == true || currentRoute == Screen.ReaderSync.route
+                val showBottomBar = !isReaderScreen
 
                 val screenInfo = getScreenInfo(currentRoute)
 

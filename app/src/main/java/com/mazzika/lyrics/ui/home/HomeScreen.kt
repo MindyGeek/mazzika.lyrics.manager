@@ -5,12 +5,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,30 +20,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -63,8 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,22 +70,43 @@ import com.mazzika.lyrics.ui.theme.DarkTextPrimary
 import com.mazzika.lyrics.ui.theme.DarkTextSecondary
 import com.mazzika.lyrics.ui.theme.Gold
 import com.mazzika.lyrics.ui.theme.GoldDeep
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-private val folderIconOptions = listOf("📁", "🎶", "🎸", "⭐", "🎼", "✨", "📦", "🎤")
+private val folderIconOptions = listOf("\uD83D\uDCC1", "\uD83C\uDFB6", "\uD83C\uDFB8", "\u2B50", "\uD83C\uDFBC", "\u2728", "\uD83D\uDCE6", "\uD83C\uDFA4")
+
+// Action card color definitions
+private val TealGradientBg = Brush.verticalGradient(
+    listOf(Color(0x1F5DB8A9), Color(0x0A5DB8A9))
+)
+private val TealIconGradient = Brush.linearGradient(
+    listOf(Color(0xFF5DB8A9), Color(0xFF3D9B8F))
+)
+private val BlueGradientBg = Brush.verticalGradient(
+    listOf(Color(0x1F6BA3D4), Color(0x0A6BA3D4))
+)
+private val BlueIconGradient = Brush.linearGradient(
+    listOf(Color(0xFF6BA3D4), Color(0xFF4A82B8))
+)
+private val AmberGradientBg = Brush.verticalGradient(
+    listOf(Color(0x1FD4A054), Color(0x0AD4A054))
+)
+private val AmberIconGradient = Brush.linearGradient(
+    listOf(Color(0xFFD4A054), Color(0xFFB88A3E))
+)
+
+// Gold glow gradient for file item icon
+private val GoldGlowGradient = Brush.linearGradient(
+    listOf(Color(0x26C5A028), Color(0x14C5A028))
+)
 
 @Composable
 fun HomeScreen(
-    onNavigateToFolder: (Long) -> Unit,
     onNavigateToReader: (Long) -> Unit,
     onNavigateToSync: () -> Unit,
     viewModel: HomeViewModel = viewModel(),
 ) {
-    val rootFolders by viewModel.rootFolders.collectAsState()
     val recentDocuments by viewModel.recentDocuments.collectAsState()
 
-    var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().background(DarkBackground)) {
@@ -113,40 +123,13 @@ fun HomeScreen(
                 )
             }
 
-            // Folders section
-            item {
-                SectionHeader(title = "Mes Dossiers")
-            }
-
-            item {
-                val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-                if (isTablet) {
-                    FolderGrid(
-                        folders = rootFolders,
-                        onFolderClick = { onNavigateToFolder(it.id) },
-                        onDeleteFolder = { viewModel.deleteFolder(it.id) },
-                        onRenameFolder = { folder, newName ->
-                            viewModel.renameFolder(folder.id, newName)
-                        },
-                        onCreateFolder = { showCreateFolderDialog = true },
-                    )
-                } else {
-                    FolderRow(
-                        folders = rootFolders,
-                        onFolderClick = { onNavigateToFolder(it.id) },
-                        onDeleteFolder = { viewModel.deleteFolder(it.id) },
-                        onRenameFolder = { folder, newName ->
-                            viewModel.renameFolder(folder.id, newName)
-                        },
-                        onCreateFolder = { showCreateFolderDialog = true },
-                    )
-                }
-            }
-
             // Recent files section
             item {
-                Spacer(modifier = Modifier.height(24.dp))
-                SectionHeader(title = "Récemment ouverts")
+                SectionHeader(
+                    title = "R\u00E9cemment ouverts",
+                    count = recentDocuments.size,
+                    showSeeAll = recentDocuments.size > 3,
+                )
             }
 
             if (recentDocuments.isEmpty()) {
@@ -162,16 +145,6 @@ fun HomeScreen(
                 }
             }
         }
-    }
-
-    if (showCreateFolderDialog) {
-        CreateFolderDialog(
-            onDismiss = { showCreateFolderDialog = false },
-            onCreate = { name, icon ->
-                viewModel.createFolder(name, icon)
-                showCreateFolderDialog = false
-            },
-        )
     }
 
     if (showImportDialog) {
@@ -193,24 +166,30 @@ private fun ActionCardsRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         ActionCard(
-            title = "Créer une session",
-            icon = Icons.Filled.CellTower,
+            emoji = "\uD83D\uDCE1", // 📡
+            title = "Cr\u00E9er session",
+            backgroundBrush = TealGradientBg,
+            iconBrush = TealIconGradient,
             onClick = onCreateSession,
             modifier = Modifier.weight(1f),
         )
         ActionCard(
+            emoji = "\uD83D\uDD0D", // 🔍
             title = "Rejoindre",
-            icon = Icons.Filled.Search,
+            backgroundBrush = BlueGradientBg,
+            iconBrush = BlueIconGradient,
             onClick = onJoin,
             modifier = Modifier.weight(1f),
         )
         ActionCard(
+            emoji = "\uD83D\uDCE5", // 📥
             title = "Importer",
-            icon = Icons.Filled.UploadFile,
+            backgroundBrush = AmberGradientBg,
+            iconBrush = AmberIconGradient,
             onClick = onImport,
             modifier = Modifier.weight(1f),
         )
@@ -219,43 +198,48 @@ private fun ActionCardsRow(
 
 @Composable
 private fun ActionCard(
+    emoji: String,
     title: String,
-    icon: ImageVector,
+    backgroundBrush: Brush,
+    iconBrush: Brush,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(
+    Box(
         modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(backgroundBrush)
+            .border(
+                width = 1.dp,
+                color = Color(0x0AFFFFFF),
+                shape = RoundedCornerShape(18.dp),
+            )
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.15f)),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Icon container: 44dp rounded square with gradient
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(GoldDeep.copy(alpha = 0.4f)),
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(iconBrush),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = Gold,
-                    modifier = Modifier.size(22.dp),
+                Text(
+                    text = emoji,
+                    fontSize = 20.sp,
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = title,
                 color = DarkTextPrimary,
-                fontSize = 12.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
@@ -356,8 +340,8 @@ private fun ImportChoiceCard(
             .fillMaxWidth()
             .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.12f)),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
             modifier = Modifier
@@ -397,14 +381,26 @@ fun FolderSelectorDialog(
     onFolderSelected: (Long) -> Unit,
 ) {
     val allFolders by viewModel.allFolders.collectAsState()
+    FolderSelectorDialogContent(
+        allFolders = allFolders,
+        hasSubFolders = { folderId -> viewModel.hasSubFolders(folderId) },
+        onDismiss = onDismiss,
+        onFolderSelected = onFolderSelected,
+    )
+}
+
+@Composable
+fun FolderSelectorDialogContent(
+    allFolders: List<FolderEntity>,
+    hasSubFolders: suspend (Long) -> Boolean,
+    onDismiss: () -> Unit,
+    onFolderSelected: (Long) -> Unit,
+) {
     val coroutineScope = rememberCoroutineScope()
 
-    // Breadcrumb navigation stack: list of (folderId?, folderName)
-    // null folderId means root
     val breadcrumb = remember { mutableStateListOf<Pair<Long?, String>>() }
     var selectedFolderId by remember { mutableStateOf<Long?>(null) }
 
-    // Initialize breadcrumb with root
     LaunchedEffect(Unit) {
         if (breadcrumb.isEmpty()) {
             breadcrumb.add(null to "Racine")
@@ -413,7 +409,6 @@ fun FolderSelectorDialog(
 
     val currentParentId = breadcrumb.lastOrNull()?.first
 
-    // Get current level folders
     val currentFolders = allFolders.filter { folder ->
         if (currentParentId == null) {
             folder.parentFolderId == null
@@ -422,7 +417,6 @@ fun FolderSelectorDialog(
         }
     }
 
-    // Auto-select current parent folder when navigating into it
     LaunchedEffect(currentParentId) {
         if (currentParentId != null) {
             selectedFolderId = currentParentId
@@ -436,7 +430,6 @@ fun FolderSelectorDialog(
             Column {
                 Text("Choisir un dossier", color = DarkTextPrimary, fontSize = 16.sp)
                 Spacer(modifier = Modifier.height(8.dp))
-                // Breadcrumb
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -450,7 +443,6 @@ fun FolderSelectorDialog(
                             fontSize = 12.sp,
                             fontWeight = if (index == breadcrumb.lastIndex) FontWeight.SemiBold else FontWeight.Normal,
                             modifier = Modifier.clickable {
-                                // Navigate back to this level
                                 while (breadcrumb.size > index + 1) {
                                     breadcrumb.removeAt(breadcrumb.lastIndex)
                                 }
@@ -482,7 +474,7 @@ fun FolderSelectorDialog(
                             modifier = Modifier
                                 .clickable {
                                     coroutineScope.launch {
-                                        val hasSubs = viewModel.hasSubFolders(folder.id)
+                                        val hasSubs = hasSubFolders(folder.id)
                                         if (hasSubs) {
                                             breadcrumb.add(folder.id to folder.name)
                                             selectedFolderId = folder.id
@@ -494,17 +486,18 @@ fun FolderSelectorDialog(
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isSelected) GoldDeep else DarkSurface,
                             ),
-                            shape = RoundedCornerShape(10.dp),
-                            border = if (isSelected) BorderStroke(1.dp, Gold) else BorderStroke(1.dp, Gold.copy(alpha = 0.1f)),
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 6.dp else 2.dp),
+                            border = if (isSelected) BorderStroke(1.dp, Gold) else null,
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(8.dp),
+                                    .padding(10.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 Text(
-                                    text = folder.icon ?: "📁",
+                                    text = folder.icon ?: "\uD83D\uDCC1",
                                     fontSize = 24.sp,
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -547,239 +540,49 @@ fun FolderSelectorDialog(
 // --- Section Header ---
 
 @Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-        color = DarkTextPrimary,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp,
-    )
-}
-
-// --- Folder Row / Grid with "Nouveau" card ---
-
-@Composable
-private fun FolderRow(
-    folders: List<FolderEntity>,
-    onFolderClick: (FolderEntity) -> Unit,
-    onDeleteFolder: (FolderEntity) -> Unit,
-    onRenameFolder: (FolderEntity, String) -> Unit,
-    onCreateFolder: () -> Unit,
+private fun SectionHeader(
+    title: String,
+    count: Int = 0,
+    showSeeAll: Boolean = false,
 ) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        // "Nouveau dossier" card as first item
-        item {
-            NewFolderCard(onClick = onCreateFolder)
-        }
-        items(folders) { folder ->
-            FolderCard(
-                folder = folder,
-                onClick = { onFolderClick(folder) },
-                onDelete = { onDeleteFolder(folder) },
-                onRename = { newName -> onRenameFolder(folder, newName) },
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun FolderGrid(
-    folders: List<FolderEntity>,
-    onFolderClick: (FolderEntity) -> Unit,
-    onDeleteFolder: (FolderEntity) -> Unit,
-    onRenameFolder: (FolderEntity, String) -> Unit,
-    onCreateFolder: () -> Unit,
-) {
-    FlowRow(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // "Nouveau dossier" card as first item
-        NewFolderCard(onClick = onCreateFolder)
-        folders.forEach { folder ->
-            FolderCard(
-                folder = folder,
-                onClick = { onFolderClick(folder) },
-                onDelete = { onDeleteFolder(folder) },
-                onRename = { newName -> onRenameFolder(folder, newName) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun NewFolderCard(onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .width(120.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.2f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        Text(
+            text = title,
+            color = DarkTextPrimary,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp,
+        )
+        if (count > 0) {
+            Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(GoldDeep.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center,
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(DarkSurface)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "Nouveau dossier",
-                    tint = Gold,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Nouveau",
-                color = Gold,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-    }
-}
-
-// --- Folder Card ---
-
-@Composable
-private fun FolderCard(
-    folder: FolderEntity,
-    onClick: () -> Unit,
-    onDelete: () -> Unit,
-    onRename: (String) -> Unit,
-) {
-    var showMenu by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = Modifier
-            .width(120.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.12f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = folder.icon ?: "📁",
-                    fontSize = 32.sp,
-                    modifier = Modifier.align(Alignment.Center),
+                    text = count.toString(),
+                    color = DarkTextMuted,
+                    fontSize = 12.sp,
                 )
-                Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                    IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(24.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.MoreVert,
-                            contentDescription = "Options",
-                            tint = DarkTextMuted,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Renommer") },
-                            onClick = {
-                                showMenu = false
-                                showRenameDialog = true
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Supprimer", color = Color(0xFFCF6679)) },
-                            onClick = {
-                                showMenu = false
-                                onDelete()
-                            },
-                        )
-                    }
-                }
             }
-            Spacer(modifier = Modifier.height(4.dp))
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        if (showSeeAll) {
             Text(
-                text = folder.name,
-                color = DarkTextPrimary,
-                fontSize = 13.sp,
+                text = "Voir tout",
+                color = Gold,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable { /* TODO */ },
             )
         }
     }
-
-    if (showRenameDialog) {
-        RenameFolderDialog(
-            currentName = folder.name,
-            onDismiss = { showRenameDialog = false },
-            onRename = { newName ->
-                onRename(newName)
-                showRenameDialog = false
-            },
-        )
-    }
-}
-
-@Composable
-private fun RenameFolderDialog(
-    currentName: String,
-    onDismiss: () -> Unit,
-    onRename: (String) -> Unit,
-) {
-    var name by remember { mutableStateOf(currentName) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = DarkSurfaceElevated,
-        title = { Text("Renommer le dossier", color = DarkTextPrimary) },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Nom") },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Gold,
-                    unfocusedBorderColor = DarkTextMuted,
-                    focusedLabelColor = Gold,
-                    unfocusedLabelColor = DarkTextMuted,
-                    focusedTextColor = DarkTextPrimary,
-                    unfocusedTextColor = DarkTextPrimary,
-                ),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { if (name.isNotBlank()) onRename(name.trim()) }) {
-                Text("Renommer", color = Gold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Annuler", color = DarkTextSecondary)
-            }
-        },
-    )
 }
 
 @Composable
@@ -787,7 +590,7 @@ private fun EmptyRecentState() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
@@ -798,7 +601,7 @@ private fun EmptyRecentState() {
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Aucun fichier récent",
+            text = "Aucun fichier r\u00E9cent",
             color = DarkTextSecondary,
             fontSize = 14.sp,
         )
@@ -812,66 +615,73 @@ private fun RecentFileItem(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 3.dp), // 6dp total between items (3dp top + 3dp bottom)
     ) {
-        // Thumbnail placeholder
-        Box(
+        Row(
             modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(DarkSurface),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(DarkSurface)
+                .clickable { onClick() }
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.Filled.MusicNote,
-                contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(24.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = document.title,
-                color = DarkTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "${document.pageCount} pages",
-                color = DarkTextMuted,
-                fontSize = 12.sp,
-            )
-        }
-
-        Box {
-            IconButton(onClick = { showMenu = true }) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = "Options",
-                    tint = DarkTextMuted,
+            // Gold glow icon box
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(GoldGlowGradient),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "\uD83C\uDFB5", // 🎵
+                    fontSize = 20.sp,
+                    color = Gold,
                 )
             }
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Ouvrir") },
-                    onClick = {
-                        showMenu = false
-                        onClick()
-                    },
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = document.title,
+                    color = DarkTextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                Text(
+                    text = "${document.pageCount} pages",
+                    color = DarkTextMuted,
+                    fontSize = 11.5.sp,
+                )
+            }
+
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "Options",
+                        tint = DarkTextMuted,
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Ouvrir") },
+                        onClick = {
+                            showMenu = false
+                            onClick()
+                        },
+                    )
+                }
             }
         }
     }
@@ -883,7 +693,7 @@ fun CreateFolderDialog(
     onCreate: (name: String, icon: String?) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
-    var selectedIcon by remember { mutableStateOf<String?>("📁") }
+    var selectedIcon by remember { mutableStateOf<String?>("\uD83D\uDCC1") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -910,14 +720,13 @@ fun CreateFolderDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Icône",
+                    text = "Ic\u00F4ne",
                     color = DarkTextSecondary,
                     fontSize = 13.sp,
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Icon picker grid
                 val chunkedIcons = folderIconOptions.chunked(4)
                 chunkedIcons.forEach { row ->
                     Row(
@@ -948,7 +757,7 @@ fun CreateFolderDialog(
             TextButton(
                 onClick = { if (name.isNotBlank()) onCreate(name.trim(), selectedIcon) },
             ) {
-                Text("Créer", color = Gold)
+                Text("Cr\u00E9er", color = Gold)
             }
         },
         dismissButton = {

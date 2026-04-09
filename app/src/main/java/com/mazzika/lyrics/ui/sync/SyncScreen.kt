@@ -79,6 +79,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.db.entity.FolderEntity
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
 import com.mazzika.lyrics.data.nearby.NearbySessionManager
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import com.mazzika.lyrics.ui.theme.CormorantGaramond
 import com.mazzika.lyrics.ui.theme.DarkBackground
 import com.mazzika.lyrics.ui.theme.DarkSurface
 import com.mazzika.lyrics.ui.theme.DarkSurfaceElevated
@@ -267,6 +271,22 @@ fun SyncScreen(
 // NONE state — Two cards only
 // ============================================================================
 
+// Teal soft gradient for create card
+private val TealCardBg = Brush.verticalGradient(
+    listOf(Color(0x1F5DB8A9), Color(0x085DB8A9))
+)
+private val TealIconGradient = Brush.linearGradient(
+    listOf(Color(0xFF5DB8A9), Color(0xFF3D9B8F))
+)
+
+// Blue soft gradient for join card
+private val BlueCardBg = Brush.verticalGradient(
+    listOf(Color(0x1F6BA3D4), Color(0x086BA3D4))
+)
+private val BlueIconGradient = Brush.linearGradient(
+    listOf(Color(0xFF6BA3D4), Color(0xFF4A82B8))
+)
+
 @Composable
 private fun NoneState(
     innerPadding: PaddingValues,
@@ -277,21 +297,23 @@ private fun NoneState(
         modifier = Modifier
             .fillMaxSize()
             .padding(innerPadding)
-            .padding(20.dp),
+            .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Hero section
         Text(
             text = "Synchronisation",
+            fontFamily = CormorantGaramond,
             color = DarkTextPrimary,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Partagez des partitions en temps réel",
+            text = "Partagez vos partitions en temps r\u00E9el",
             color = DarkTextMuted,
-            fontSize = 14.sp,
+            fontSize = 13.sp,
         )
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -300,35 +322,39 @@ private fun NoneState(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // Create session card
-            Card(
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable { onCreateSession() },
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                shape = RoundedCornerShape(16.dp),
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(TealCardBg)
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.04f),
+                        shape = RoundedCornerShape(18.dp),
+                    )
+                    .clickable { onCreateSession() }
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    // Icon square 56dp with teal gradient
                     Box(
                         modifier = Modifier
                             .size(56.dp)
-                            .background(color = GoldDeep, shape = CircleShape),
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(TealIconGradient),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.CellTower,
-                            contentDescription = null,
-                            tint = Gold,
-                            modifier = Modifier.size(28.dp),
+                        Text(
+                            text = "\uD83D\uDCE1", // 📡
+                            fontSize = 24.sp,
                         )
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Text(
-                        text = "Créer une session",
+                        text = "Cr\u00E9er une session",
                         color = DarkTextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -336,44 +362,48 @@ private fun NoneState(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Partager une partition",
+                        text = "Diffusez une partition \u00E0 votre \u00E9quipe",
                         color = DarkTextMuted,
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
                         textAlign = TextAlign.Center,
                     )
                 }
             }
 
             // Join session card
-            Card(
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable { onJoinSession() },
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                shape = RoundedCornerShape(16.dp),
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(BlueCardBg)
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.04f),
+                        shape = RoundedCornerShape(18.dp),
+                    )
+                    .clickable { onJoinSession() }
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    // Icon square 56dp with blue gradient
                     Box(
                         modifier = Modifier
                             .size(56.dp)
-                            .background(color = GoldDeep, shape = CircleShape),
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(BlueIconGradient),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = null,
-                            tint = Gold,
-                            modifier = Modifier.size(28.dp),
+                        Text(
+                            text = "\uD83D\uDD0D", // 🔍
+                            fontSize = 24.sp,
                         )
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Text(
-                        text = "Rejoindre une session",
+                        text = "Rejoindre",
                         color = DarkTextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -381,9 +411,9 @@ private fun NoneState(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Recevoir une partition",
+                        text = "Rechercher les sessions \u00E0 proximit\u00E9",
                         color = DarkTextMuted,
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -1192,7 +1222,8 @@ private fun PilotState(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
@@ -1350,7 +1381,8 @@ private fun FollowerActiveState(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(

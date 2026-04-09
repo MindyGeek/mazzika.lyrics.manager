@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +74,11 @@ import com.mazzika.lyrics.ui.theme.DarkTextMuted
 import com.mazzika.lyrics.ui.theme.DarkTextPrimary
 import com.mazzika.lyrics.ui.theme.DarkTextSecondary
 import com.mazzika.lyrics.ui.theme.Gold
+
+// Gold glow gradient for file item icon
+private val GoldGlowGradient = Brush.linearGradient(
+    listOf(Color(0x26C5A028), Color(0x14C5A028))
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,7 +122,10 @@ fun FolderDetailScreen(
                 // Sub-folders section
                 if (subFolders.isNotEmpty()) {
                     item {
-                        SectionHeader(title = "Sous-dossiers")
+                        SectionHeader(
+                            title = "Sous-dossiers",
+                            count = subFolders.size,
+                        )
                     }
                     item {
                         SubFolderRow(
@@ -134,7 +143,10 @@ fun FolderDetailScreen(
                 // Documents section
                 if (documents.isNotEmpty()) {
                     item {
-                        SectionHeader(title = "Fichiers")
+                        SectionHeader(
+                            title = "Fichiers",
+                            count = documents.size,
+                        )
                     }
                     items(documents) { document ->
                         FolderDocumentItem(
@@ -247,13 +259,14 @@ private fun SpeedDialItem(
     ) {
         Card(
             colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated),
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(18.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
             Text(
                 text = label,
                 color = DarkTextPrimary,
                 fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             )
         }
         SmallFloatingActionButton(
@@ -340,14 +353,36 @@ private fun CatalogCopyDialog(
 }
 
 @Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-        color = DarkTextPrimary,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp,
-    )
+private fun SectionHeader(
+    title: String,
+    count: Int = 0,
+) {
+    Row(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            color = DarkTextPrimary,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp,
+        )
+        if (count > 0) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(DarkSurface)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = "$count",
+                    color = DarkTextMuted,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -358,8 +393,8 @@ private fun SubFolderRow(
     onRenameFolder: (FolderEntity, String) -> Unit,
 ) {
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         items(folders) { folder ->
             SubFolderCard(
@@ -387,15 +422,16 @@ private fun SubFolderCard(
             .width(120.dp)
             .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(18.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = folder.icon ?: "📁",
+                    text = folder.icon ?: "\uD83D\uDCC1",
                     fontSize = 32.sp,
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -506,73 +542,81 @@ private fun FolderDocumentItem(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 3.dp),
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(DarkSurface),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(DarkSurface)
+                .clickable { onClick() }
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.Filled.MusicNote,
-                contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(24.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = document.title,
-                color = DarkTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "${document.pageCount} page${if (document.pageCount != 1) "s" else ""}",
-                color = DarkTextMuted,
-                fontSize = 12.sp,
-            )
-        }
-
-        Box {
-            IconButton(onClick = { showMenu = true }) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = "Options",
-                    tint = DarkTextMuted,
+            // Gold glow icon box with emoji
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(GoldGlowGradient),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "\uD83C\uDFB5", // 🎵
+                    fontSize = 20.sp,
+                    color = Gold,
                 )
             }
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false },
-                containerColor = DarkSurfaceElevated,
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Ouvrir", color = DarkTextPrimary) },
-                    onClick = {
-                        showMenu = false
-                        onClick()
-                    },
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = document.title,
+                    color = DarkTextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                DropdownMenuItem(
-                    text = { Text("Retirer du dossier", color = Color(0xFFCF6679)) },
-                    onClick = {
-                        showMenu = false
-                        onRemove()
-                    },
+                Text(
+                    text = "${document.pageCount} page${if (document.pageCount != 1) "s" else ""}",
+                    color = DarkTextMuted,
+                    fontSize = 11.5.sp,
                 )
+            }
+
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = "Options",
+                        tint = DarkTextMuted,
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    containerColor = DarkSurfaceElevated,
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Ouvrir", color = DarkTextPrimary) },
+                        onClick = {
+                            showMenu = false
+                            onClick()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Retirer du dossier", color = Color(0xFFCF6679)) },
+                        onClick = {
+                            showMenu = false
+                            onRemove()
+                        },
+                    )
+                }
             }
         }
     }
