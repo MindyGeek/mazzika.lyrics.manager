@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.db.entity.FolderEntity
+import com.mazzika.lyrics.ui.home.FolderSelectorDialogContent
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
 import com.mazzika.lyrics.ui.theme.DarkBackground
 import com.mazzika.lyrics.ui.theme.DarkSurface
@@ -176,8 +177,9 @@ fun CatalogScreen(
 
     // Dialog: Ajouter a un dossier
     documentToAddToFolder?.let { docId ->
-        AddToFolderDialog(
-            folders = allFolders,
+        FolderSelectorDialogContent(
+            allFolders = allFolders,
+            hasSubFolders = { folderId -> viewModel.hasSubFolders(folderId) },
             onDismiss = { documentToAddToFolder = null },
             onFolderSelected = { folderId ->
                 viewModel.addToFolder(docId, folderId)
@@ -410,53 +412,6 @@ private fun FileCard(
             }
         }
     }
-}
-
-@Composable
-private fun AddToFolderDialog(
-    folders: List<FolderEntity>,
-    onDismiss: () -> Unit,
-    onFolderSelected: (Long) -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = DarkSurfaceElevated,
-        title = { Text("Ajouter \u00E0 un dossier", color = DarkTextPrimary) },
-        text = {
-            if (folders.isEmpty()) {
-                Text("Aucun dossier. Cr\u00E9ez-en un depuis l'accueil.", color = DarkTextMuted, fontSize = 14.sp)
-            } else {
-                Column {
-                    folders.forEach { folder ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onFolderSelected(folder.id) }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = folder.icon ?: "\uD83D\uDCC1",
-                                fontSize = 20.sp,
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = folder.name,
-                                color = DarkTextPrimary,
-                                fontSize = 15.sp,
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Annuler", color = DarkTextSecondary)
-            }
-        },
-    )
 }
 
 @Composable

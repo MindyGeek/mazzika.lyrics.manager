@@ -27,8 +27,12 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     private val folderDocumentRefDao = database.folderDocumentRefDao()
     private val fileManager = FileManager(application)
 
-    val allFolders: StateFlow<List<FolderEntity>> = folderDao.getRootFolders()
+    val allFolders: StateFlow<List<FolderEntity>> = folderDao.getAllFolders()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    suspend fun hasSubFolders(folderId: Long): Boolean {
+        return folderDao.getSubFolderCount(folderId) > 0
+    }
 
     val searchQuery: MutableStateFlow<String> = MutableStateFlow("")
     val sortMode: MutableStateFlow<SortMode> = MutableStateFlow(SortMode.RECENT)

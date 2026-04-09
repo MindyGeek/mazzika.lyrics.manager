@@ -36,6 +36,7 @@ private data class NavTab(
 private val navTabs = listOf(
     NavTab("Accueil", "🏠", Screen.Home),
     NavTab("Catalogue", "📚", Screen.Catalog),
+    NavTab("Dossiers", "📁", Screen.Folders),
     NavTab("Session", "📡", Screen.Sync),
     NavTab("Param.", "⚙\uFE0F", Screen.Settings),
 )
@@ -68,7 +69,8 @@ fun BottomNavBar(navController: NavController) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             navTabs.forEach { tab ->
-                val selected = currentRoute == tab.screen.route
+                val selected = currentRoute == tab.screen.route ||
+                    (tab.screen == Screen.Folders && currentRoute?.startsWith("folder/") == true)
 
                 Column(
                     modifier = Modifier
@@ -84,7 +86,7 @@ fun BottomNavBar(navController: NavController) {
                                 restoreState = true
                             }
                         }
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     // Icon in pill when active
