@@ -31,7 +31,16 @@
       "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
       "Bash(JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" /Users/mac/Desktop/Dev/Mazzika/Lyrics/gradlew assembleDebug)",
       "Bash(JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" /Users/mac/Desktop/Dev/Mazzika/Lyrics/gradlew assembleDebug --stacktrace)",
-      "Bash(./gradlew clean:*)"
+      "Bash(./gradlew clean:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(echo \"Server PID: $!\")",
+      "Bash(convert --version)",
+      "Bash(python3 -c \"import cairosvg\")",
+      "Bash(python3 -c \"from PIL import Image\")",
+      "Bash(python3 -c \"import subprocess; subprocess.run\\(['qlmanage', '-h'], capture_output=True\\)\")",
+      "Bash(qlmanage:*)",
+      "Bash(ls:*)"
     ]
   }
 }
