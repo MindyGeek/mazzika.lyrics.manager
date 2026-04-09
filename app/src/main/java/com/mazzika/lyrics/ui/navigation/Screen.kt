@@ -48,7 +48,7 @@ fun getScreenInfo(route: String?): ScreenInfo {
         route == Screen.Catalog.route -> ScreenInfo("Catalogue", showBackButton = false, showTopBar = true)
         route == Screen.Folders.route -> ScreenInfo("Dossiers", showBackButton = false, showTopBar = true)
         route == Screen.Sync.route -> ScreenInfo("Session", showBackButton = false, showTopBar = true)
-        route == Screen.Settings.route -> ScreenInfo("Paramètres", showBackButton = false, showTopBar = true)
+        route == Screen.Settings.route -> ScreenInfo("Paramètres", showBackButton = true, showTopBar = true)
         route.startsWith("folder/") -> ScreenInfo("Dossier", showBackButton = true, showTopBar = true)
         route.startsWith("reader/") -> ScreenInfo("", showBackButton = false, showTopBar = false)
         route == Screen.ReaderSync.route -> ScreenInfo("", showBackButton = false, showTopBar = false)

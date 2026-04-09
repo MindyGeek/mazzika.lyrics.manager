@@ -68,9 +68,8 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 80.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
         ) {
-            item { Spacer(modifier = Modifier.height(16.dp)) }
 
             // Affichage section
             item {

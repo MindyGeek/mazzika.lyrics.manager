@@ -153,6 +153,7 @@ fun NavGraph(
                 }
             }
             val syncPageValue by syncViewModel.syncPage.collectAsState()
+            val pilotPage by syncViewModel.pilotCurrentPage.collectAsState()
             val isDetached by syncViewModel.isDetached.collectAsState()
             val isTempFile by syncViewModel.isTempFile.collectAsState()
             val syncConnectedEndpoints by syncViewModel.connectedEndpoints.collectAsState()
@@ -162,6 +163,7 @@ fun NavGraph(
                 onNavigateToSync = { navController.navigate(Screen.Sync.route) },
                 syncMode = SyncMode.FOLLOWER,
                 syncPage = syncPageValue,
+                pilotCurrentPage = pilotPage,
                 isDetached = isDetached,
                 onToggleDetached = { syncViewModel.toggleDetached() },
                 isTempFile = isTempFile,

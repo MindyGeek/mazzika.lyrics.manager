@@ -18,6 +18,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,7 +41,6 @@ private val navTabs = listOf(
     NavTab("Catalogue", "📚", Screen.Catalog),
     NavTab("Dossiers", "📁", Screen.Folders),
     NavTab("Session", "📡", Screen.Sync),
-    NavTab("Param.", "⚙\uFE0F", Screen.Settings),
 )
 
 @Composable
@@ -46,19 +48,24 @@ fun BottomNavBar(navController: NavController) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    val goldLineColor = Color(0x26C5A028)
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xF2080808))
+            .drawBehind {
+                drawLine(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(Color.Transparent, goldLineColor, Color.Transparent),
+                    ),
+                    start = Offset(0f, 0f),
+                    end = Offset(size.width, 0f),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            }
             .padding(top = 1.dp),
     ) {
-        // Top border
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White.copy(alpha = 0.04f))
-                .padding(bottom = 0.dp),
-        )
 
         Row(
             modifier = Modifier

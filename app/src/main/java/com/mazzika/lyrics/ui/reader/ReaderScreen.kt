@@ -5,6 +5,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +23,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SyncAlt
+import androidx.compose.material.icons.filled.SyncDisabled
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -32,9 +36,13 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -68,6 +76,7 @@ fun ReaderScreen(
     onSaveToCatalogue: (() -> Unit)? = null,
     connectedCount: Int = 0,
     isConnectionHealthy: Boolean = true,
+    pilotCurrentPage: Int = 0,
 ) {
     val title by viewModel.title.collectAsState()
     val pageCount by viewModel.pageCount.collectAsState()
@@ -84,8 +93,18 @@ fun ReaderScreen(
     }
 
     // Follower: apply page from pilot when not detached
+    // Uses pilotCurrentPage which is always up-to-date (even when reader was closed)
+    LaunchedEffect(pilotCurrentPage, pageCount, isDetached) {
+        if (syncMode == SyncMode.FOLLOWER && pageCount > 0 && !isDetached) {
+            if (currentPage != pilotCurrentPage) {
+                viewModel.setCurrentPage(pilotCurrentPage)
+            }
+        }
+    }
+
+    // Also react to syncPage changes for real-time updates while reader is open
     LaunchedEffect(syncPage) {
-        if (syncMode == SyncMode.FOLLOWER && syncPage != null) {
+        if (syncMode == SyncMode.FOLLOWER && syncPage != null && !isDetached) {
             viewModel.setCurrentPage(syncPage)
         }
     }
@@ -184,12 +203,62 @@ fun ReaderScreen(
                         }
                     }
 
-                    IconButton(onClick = onNavigateToSync) {
-                        Icon(
-                            imageVector = Icons.Filled.SyncAlt,
-                            contentDescription = "Synchroniser",
-                            tint = GoldLight,
-                        )
+                    // Navigation libre toggle (follower) or sync icon (pilot/none)
+                    if (syncMode == SyncMode.FOLLOWER && onToggleDetached != null) {
+                        var showTooltip by remember { mutableStateOf(false) }
+
+                        Box(contentAlignment = Alignment.TopEnd) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .pointerInput(Unit) {
+                                        detectTapGestures(
+                                            onLongPress = { showTooltip = true },
+                                            onTap = { onToggleDetached() },
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = if (isDetached) Icons.Filled.SyncDisabled else Icons.Filled.Sync,
+                                    contentDescription = if (isDetached) "Re-synchroniser" else "Navigation libre",
+                                    tint = if (isDetached) Error else GoldLight,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
+
+                            // Tooltip on long press
+                            if (showTooltip) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 50.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF2A2A2A))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                ) {
+                                    Text(
+                                        text = if (isDetached) "Re-synchroniser" else "Navigation libre",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                    )
+                                }
+
+                                LaunchedEffect(Unit) {
+                                    kotlinx.coroutines.delay(2000)
+                                    showTooltip = false
+                                }
+                            }
+                        }
+                    } else if (syncMode == SyncMode.NONE) {
+                        IconButton(onClick = onNavigateToSync) {
+                            Icon(
+                                imageVector = Icons.Filled.SyncAlt,
+                                contentDescription = "Synchroniser",
+                                tint = GoldLight,
+                            )
+                        }
                     }
                 }
             }
@@ -286,25 +355,7 @@ fun ReaderScreen(
             }
         }
 
-        // Follower: Navigation libre / Re-synchroniser pill
-        if (syncMode == SyncMode.FOLLOWER && onToggleDetached != null) {
-            Button(
-                onClick = onToggleDetached,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 100.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isDetached) Gold else Color.White.copy(alpha = 0.15f),
-                    contentColor = if (isDetached) Color.Black else Color.White,
-                ),
-                shape = RoundedCornerShape(20.dp),
-            ) {
-                Text(
-                    text = if (isDetached) "Re-synchroniser" else "Navigation libre",
-                    fontSize = 13.sp,
-                )
-            }
-        }
+        // Navigation libre pill removed — now in toolbar icon
 
         // Follower: Save to catalogue button (shown only when temp file)
         if (syncMode == SyncMode.FOLLOWER && isTempFile && onSaveToCatalogue != null) {
