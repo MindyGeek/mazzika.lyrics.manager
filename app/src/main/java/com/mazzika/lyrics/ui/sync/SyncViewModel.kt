@@ -10,11 +10,14 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mazzika.lyrics.MazzikaApplication
+import com.mazzika.lyrics.data.db.entity.FolderEntity
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
 import com.mazzika.lyrics.data.nearby.NearbyService
 import com.mazzika.lyrics.data.nearby.NearbySessionManager
 import com.mazzika.lyrics.data.nearby.SyncMessage
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +38,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "SyncViewModel"
+        const val DISCOVERY_TIMEOUT_SECONDS = 15
     }
 
     private val app = application as MazzikaApplication
@@ -64,8 +68,51 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     private val _isDetached = MutableStateFlow(false)
     val isDetached: StateFlow<Boolean> = _isDetached.asStateFlow()
 
+    // --- New session management features ---
+
+    private val _sessionName = MutableStateFlow("")
+    val sessionName: StateFlow<String> = _sessionName.asStateFlow()
+
+    private val _transferProgress = MutableStateFlow<Float?>(null)
+    val transferProgress: StateFlow<Float?> = _transferProgress.asStateFlow()
+
+    private val _sessionEndedByPilot = MutableStateFlow(false)
+    val sessionEndedByPilot: StateFlow<Boolean> = _sessionEndedByPilot.asStateFlow()
+
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
+    private val _discoveryTimedOut = MutableStateFlow(false)
+    val discoveryTimedOut: StateFlow<Boolean> = _discoveryTimedOut.asStateFlow()
+
+    private var discoveryTimeoutJob: Job? = null
+
+    fun setSessionName(name: String) {
+        _sessionName.value = name
+    }
+
+    /** Call after navigating to reader to prevent re-navigation on recomposition. */
+    fun markNavigatedToReader() {
+        _navigatedToReader = true
+    }
+
+    private var _navigatedToReader = false
+    val hasNavigatedToReader: Boolean get() = _navigatedToReader
+
+    fun acknowledgeSessionEnd() {
+        _sessionEndedByPilot.value = false
+    }
+
     val allDocuments: StateFlow<List<PdfDocumentEntity>> = app.database.pdfDocumentDao()
         .getAll()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
+    val allFolders: StateFlow<List<FolderEntity>> = app.database.folderDao()
+        .getRootFolders()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -105,6 +152,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             observeIncomingFiles()
             observeIncomingFilePaths()
             observeConnectedEndpoints()
+            observeTransferProgress()
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -160,6 +208,12 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         }?.launchIn(viewModelScope)
     }
 
+    private fun observeTransferProgress() {
+        _sessionManager.value?.transferProgress?.onEach { progress ->
+            _transferProgress.value = progress
+        }?.launchIn(viewModelScope)
+    }
+
     private fun handleMessage(endpointId: String, message: SyncMessage) {
         viewModelScope.launch {
             val manager = _sessionManager.value ?: run {
@@ -198,6 +252,10 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                     if (!_isDetached.value) {
                         _syncPage.value = message.page
                     }
+                }
+                is SyncMessage.SessionEnd -> {
+                    Log.d(TAG, "SessionEnd received: reason=${message.reason}")
+                    _sessionEndedByPilot.value = true
                 }
             }
         }
@@ -281,6 +339,9 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             awaitServiceReady()
             val deviceName = app.userPreferences.deviceName.first()
+            if (_sessionName.value.isBlank()) {
+                _sessionName.value = "Session de $deviceName"
+            }
             Log.d(TAG, "Starting advertising as '$deviceName'")
             _sessionManager.value?.startAdvertising(deviceName)
         }
@@ -293,8 +354,27 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             awaitServiceReady()
             Log.d(TAG, "Starting discovery")
-            _sessionManager.value?.startDiscovery()
+            startDiscoveryWithTimeout()
         }
+    }
+
+    fun startDiscoveryWithTimeout() {
+        _isSearching.value = true
+        _discoveryTimedOut.value = false
+        _sessionManager.value?.startDiscovery()
+        discoveryTimeoutJob?.cancel()
+        discoveryTimeoutJob = viewModelScope.launch {
+            delay(DISCOVERY_TIMEOUT_SECONDS * 1000L)
+            _isSearching.value = false
+            _discoveryTimedOut.value = true
+            _sessionManager.value?.stopDiscovery()
+        }
+    }
+
+    fun restartDiscovery() {
+        discoveryTimeoutJob?.cancel()
+        _sessionManager.value?.stopDiscovery()
+        startDiscoveryWithTimeout()
     }
 
     fun connectToEndpoint(endpointId: String) {
@@ -332,6 +412,13 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun stopSession() {
+        // If pilot, send SESSION_END to all followers before disconnecting
+        if (_role.value == SyncRole.PILOT) {
+            _sessionManager.value?.broadcastMessage(
+                SyncMessage.SessionEnd(reason = "Le chef de pupitre a arrêté la session"),
+            )
+        }
+        discoveryTimeoutJob?.cancel()
         _sessionManager.value?.run {
             stopAdvertising()
             stopDiscovery()
@@ -345,10 +432,29 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _isDetached.value = false
         _pilotCurrentPage.value = 0
         _isTempFile.value = false
+        _sessionName.value = ""
+        _transferProgress.value = null
+        _isSearching.value = false
+        _discoveryTimedOut.value = false
+        _navigatedToReader = false
     }
+
+    /** Initialize default session name from device name. */
+    fun initSessionName() {
+        if (_sessionName.value.isBlank()) {
+            viewModelScope.launch {
+                val deviceName = app.userPreferences.deviceName.first()
+                _sessionName.value = "Session de $deviceName"
+            }
+        }
+    }
+
+    fun getDocumentsInFolder(folderId: Long) =
+        app.database.folderDocumentRefDao().getDocumentsInFolder(folderId)
 
     override fun onCleared() {
         super.onCleared()
+        discoveryTimeoutJob?.cancel()
         stopService()
     }
 }

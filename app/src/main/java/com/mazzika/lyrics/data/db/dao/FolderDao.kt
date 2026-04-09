@@ -26,4 +26,10 @@ interface FolderDao {
 
     @Query("DELETE FROM folders WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("SELECT * FROM folders ORDER BY name ASC")
+    fun getAllFolders(): Flow<List<FolderEntity>>
+
+    @Query("SELECT COUNT(*) FROM folders WHERE parentFolderId = :parentId")
+    suspend fun getSubFolderCount(parentId: Long): Int
 }

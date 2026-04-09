@@ -40,7 +40,10 @@
       "Bash(python3 -c \"from PIL import Image\")",
       "Bash(python3 -c \"import subprocess; subprocess.run\\(['qlmanage', '-h'], capture_output=True\\)\")",
       "Bash(qlmanage:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git fetch:*)",
+      "Bash(grep:*)",
+      "Bash(md5 /Users/mac/Desktop/Dev/Mazzika/Lyrics/app/src/main/java/com/mazzika/lyrics/ui/reader/ReaderScreen.kt)"
     ]
   }
 }

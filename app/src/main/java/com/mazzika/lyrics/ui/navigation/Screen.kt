@@ -33,3 +33,23 @@ val bottomNavItems = listOf(
     BottomNavItem(label = "Sync", icon = Icons.Filled.SyncAlt, screen = Screen.Sync),
     BottomNavItem(label = "Réglages", icon = Icons.Filled.Settings, screen = Screen.Settings),
 )
+
+data class ScreenInfo(
+    val title: String,
+    val showBackButton: Boolean,
+    val showTopBar: Boolean,
+)
+
+fun getScreenInfo(route: String?): ScreenInfo {
+    return when {
+        route == null -> ScreenInfo("Mazzika", showBackButton = false, showTopBar = true)
+        route == Screen.Home.route -> ScreenInfo("Mazzika", showBackButton = false, showTopBar = true)
+        route == Screen.Catalog.route -> ScreenInfo("Catalogue", showBackButton = false, showTopBar = true)
+        route == Screen.Sync.route -> ScreenInfo("Session", showBackButton = false, showTopBar = true)
+        route == Screen.Settings.route -> ScreenInfo("Paramètres", showBackButton = false, showTopBar = true)
+        route.startsWith("folder/") -> ScreenInfo("Dossier", showBackButton = true, showTopBar = true)
+        route.startsWith("reader/") -> ScreenInfo("", showBackButton = false, showTopBar = false)
+        route == Screen.ReaderSync.route -> ScreenInfo("", showBackButton = false, showTopBar = false)
+        else -> ScreenInfo("Mazzika", showBackButton = false, showTopBar = true)
+    }
+}

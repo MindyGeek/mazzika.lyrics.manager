@@ -1,9 +1,9 @@
 package com.mazzika.lyrics.ui.reader
 
-import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,92 +19,47 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import com.mazzika.lyrics.ui.theme.Gold
 import com.mazzika.lyrics.ui.theme.GoldLight
+import com.mazzika.lyrics.ui.theme.MazzikaLyricsTheme
 import com.mazzika.lyrics.ui.theme.Success
 import com.mazzika.lyrics.ui.theme.Error
 
-enum class SyncMode { NONE, PILOT, FOLLOWER }
+// ==================== PREVIEWS ====================
 
+/**
+ * Preview statique du layout du lecteur (sans ViewModel).
+ * Permet d'ajuster les valeurs de padding, taille, couleurs directement dans Android Studio.
+ */
 @Composable
-fun ReaderScreen(
-    viewModel: ReaderViewModel,
-    onNavigateBack: () -> Unit,
-    onNavigateToSync: () -> Unit,
-    modifier: Modifier = Modifier,
+internal fun ReaderScreenPreviewContent(
+    title: String = "Cocktail Hadhra - Saber",
+    currentPage: Int = 0,
+    pageCount: Int = 5,
+    showToolbar: Boolean = true,
     syncMode: SyncMode = SyncMode.NONE,
-    onPageChangedForSync: ((Int) -> Unit)? = null,
-    syncPage: Int? = null,
-    isDetached: Boolean = false,
-    onToggleDetached: (() -> Unit)? = null,
-    isTempFile: Boolean = false,
-    onSaveToCatalogue: (() -> Unit)? = null,
     connectedCount: Int = 0,
     isConnectionHealthy: Boolean = true,
+    isDetached: Boolean = false,
+    isTempFile: Boolean = false,
 ) {
-    val title by viewModel.title.collectAsState()
-    val pageCount by viewModel.pageCount.collectAsState()
-    val currentPage by viewModel.currentPage.collectAsState()
-    val showToolbar by viewModel.showToolbar.collectAsState()
-
-    val context = LocalContext.current
-
-    // Pilot: broadcast page changes
-    LaunchedEffect(currentPage, syncMode) {
-        if (syncMode == SyncMode.PILOT) {
-            onPageChangedForSync?.invoke(currentPage)
-        }
-    }
-
-    // Follower: apply page from pilot when not detached
-    LaunchedEffect(syncPage) {
-        if (syncMode == SyncMode.FOLLOWER && syncPage != null) {
-            viewModel.setCurrentPage(syncPage)
-        }
-    }
-
-    // Immersive mode
-    DisposableEffect(Unit) {
-        val window = (context as? ComponentActivity)?.window ?: return@DisposableEffect onDispose {}
-        val controller = WindowCompat.getInsetsController(window, window.decorView)
-        controller.hide(WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-
-        onDispose {
-            controller.show(WindowInsetsCompat.Type.systemBars())
-        }
-    }
-
     Box(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
@@ -113,16 +68,23 @@ fun ReaderScreen(
                 ),
             ),
     ) {
-        // Page content
-        if (pageCount > 0) {
-            PageFlipPager(
-                pageCount = pageCount,
-                currentPage = currentPage,
-                onPageChanged = { viewModel.setCurrentPage(it) },
-                onCenterTap = { viewModel.toggleToolbar() },
-                renderPage = { pageIndex, width -> viewModel.renderPage(pageIndex, width) },
-                modifier = Modifier.fillMaxSize(),
-            )
+        // Fake page content
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "\uD83C\uDFB5",
+                    fontSize = 48.sp,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                Text(
+                    text = "Page ${currentPage + 1}",
+                    color = Color.White.copy(alpha = 0.3f),
+                    fontSize = 16.sp,
+                )
+            }
         }
 
         // Top toolbar
@@ -150,7 +112,7 @@ fun ReaderScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(48.dp))
                     Text(
                         text = title,
                         color = Color.White,
@@ -161,35 +123,32 @@ fun ReaderScreen(
                         modifier = Modifier.weight(1f),
                     )
 
-                    // Session info when sync active
+                    // Session info
                     if (syncMode != SyncMode.NONE) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(end = 4.dp),
+                            modifier = Modifier.padding(end = 8.dp),
                         ) {
-                            // Connection health dot
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
                                     .background(if (isConnectionHealthy) Success else Error),
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "$connectedCount connect${if (connectedCount > 1) "és" else "é"}",
+                                text = "$connectedCount",
                                 color = Color.White.copy(alpha = 0.7f),
                                 fontSize = 12.sp,
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
                         }
                     }
 
-                    IconButton(onClick = onNavigateToSync) {
-                        Icon(
-                            imageVector = Icons.Filled.SyncAlt,
-                            contentDescription = "Synchroniser",
-                            tint = GoldLight,
-                        )
+                    Box(
+                        modifier = Modifier.size(48.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(text = "\u21BB", color = GoldLight, fontSize = 20.sp)
                     }
                 }
             }
@@ -200,7 +159,7 @@ fun ReaderScreen(
             visible = showToolbar && pageCount > 0,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier.align(Alignment.BottomEnd),
         ) {
             Box(
                 modifier = Modifier
@@ -216,10 +175,7 @@ fun ReaderScreen(
                     .padding(bottom = 80.dp, top = 16.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    // Dot indicators (show max 10 dots)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     if (pageCount <= 10) {
                         Row(
                             horizontalArrangement = Arrangement.Center,
@@ -241,7 +197,6 @@ fun ReaderScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                     }
-
                     Text(
                         text = "${currentPage + 1} / $pageCount",
                         color = Color.White.copy(alpha = 0.8f),
@@ -252,7 +207,7 @@ fun ReaderScreen(
             }
         }
 
-        // "Fermer" pill button at bottom center
+        // "Fermer" pill button
         AnimatedVisibility(
             visible = showToolbar,
             enter = fadeIn(),
@@ -262,34 +217,24 @@ fun ReaderScreen(
                 .padding(bottom = 150.dp),
         ) {
             Button(
-                onClick = onNavigateBack,
+                onClick = {},
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF2A2A2A),
                     contentColor = Color.White,
                 ),
                 shape = RoundedCornerShape(24.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    Color.White.copy(alpha = 0.2f),
-                ),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
+                Text(text = "\u2715", fontSize = 14.sp)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Fermer",
-                    fontSize = 14.sp,
-                )
+                Text(text = "Fermer", fontSize = 14.sp)
             }
         }
 
-        // Follower: Navigation libre / Re-synchroniser pill
-        if (syncMode == SyncMode.FOLLOWER && onToggleDetached != null) {
+        // Follower pills
+        if (syncMode == SyncMode.FOLLOWER) {
             Button(
-                onClick = onToggleDetached,
+                onClick = {},
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = 100.dp),
@@ -304,27 +249,125 @@ fun ReaderScreen(
                     fontSize = 13.sp,
                 )
             }
-        }
 
-        // Follower: Save to catalogue button (shown only when temp file)
-        if (syncMode == SyncMode.FOLLOWER && isTempFile && onSaveToCatalogue != null) {
-            Button(
-                onClick = onSaveToCatalogue,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 100.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Gold,
-                    contentColor = Color.Black,
-                ),
-                shape = RoundedCornerShape(20.dp),
-            ) {
-                Text(
-                    text = "\uD83D\uDCBE Sauvegarder",
-                    fontSize = 13.sp,
-                )
+            if (isTempFile) {
+                Button(
+                    onClick = {},
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 16.dp, bottom = 100.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Gold,
+                        contentColor = Color.Black,
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                ) {
+                    Text(text = "\uD83D\uDCBE Sauvegarder", fontSize = 13.sp)
+                }
             }
         }
     }
 }
 
+@Preview(
+    name = "Lecteur - Mode normal",
+    showBackground = true,
+    widthDp = 400,
+    heightDp = 800,
+)
+@Composable
+internal fun ReaderPreviewNormal() {
+    MazzikaLyricsTheme(darkTheme = true) {
+        ReaderScreenPreviewContent(
+            title = "Ya Rayah - Dahmane El Harrachi",
+            currentPage = 1,
+            pageCount = 4,
+            showToolbar = true,
+        )
+    }
+}
+
+@Preview(
+    name = "Lecteur - Mode Pilote",
+    showBackground = true,
+    widthDp = 400,
+    heightDp = 800,
+)
+@Composable
+internal fun ReaderPreviewPilot() {
+    MazzikaLyricsTheme(darkTheme = true) {
+        ReaderScreenPreviewContent(
+            title = "Cocktail Hadhra - Saber",
+            currentPage = 0,
+            pageCount = 3,
+            showToolbar = true,
+            syncMode = SyncMode.PILOT,
+            connectedCount = 4,
+            isConnectionHealthy = true,
+        )
+    }
+}
+
+@Preview(
+    name = "Lecteur - Mode Suiveur",
+    showBackground = true,
+    widthDp = 400,
+    heightDp = 800,
+)
+@Composable
+internal fun ReaderPreviewFollower() {
+    MazzikaLyricsTheme(darkTheme = true) {
+        ReaderScreenPreviewContent(
+            title = "Amazing Grace",
+            currentPage = 2,
+            pageCount = 6,
+            showToolbar = true,
+            syncMode = SyncMode.FOLLOWER,
+            connectedCount = 3,
+            isConnectionHealthy = true,
+            isTempFile = true,
+        )
+    }
+}
+
+@Preview(
+    name = "Lecteur - Suiveur detache",
+    showBackground = true,
+    widthDp = 400,
+    heightDp = 800,
+)
+@Composable
+internal fun ReaderPreviewDetached() {
+    MazzikaLyricsTheme(darkTheme = true) {
+        ReaderScreenPreviewContent(
+            title = "Hotel California",
+            currentPage = 3,
+            pageCount = 5,
+            showToolbar = true,
+            syncMode = SyncMode.FOLLOWER,
+            connectedCount = 2,
+            isConnectionHealthy = false,
+            isDetached = true,
+        )
+    }
+}
+
+@Preview(
+    name = "Lecteur - Tablette",
+    showBackground = true,
+    widthDp = 800,
+    heightDp = 1200,
+)
+@Composable
+internal fun ReaderPreviewTablet() {
+    MazzikaLyricsTheme(darkTheme = true) {
+        ReaderScreenPreviewContent(
+            title = "Enta Omri - Oum Kalthoum",
+            currentPage = 0,
+            pageCount = 8,
+            showToolbar = true,
+            syncMode = SyncMode.PILOT,
+            connectedCount = 5,
+        )
+    }
+}

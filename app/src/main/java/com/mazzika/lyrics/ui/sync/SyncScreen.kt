@@ -20,44 +20,63 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mazzika.lyrics.data.db.entity.FolderEntity
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
 import com.mazzika.lyrics.data.nearby.NearbySessionManager
 import com.mazzika.lyrics.ui.theme.DarkBackground
@@ -68,6 +87,7 @@ import com.mazzika.lyrics.ui.theme.DarkTextPrimary
 import com.mazzika.lyrics.ui.theme.DarkTextSecondary
 import com.mazzika.lyrics.ui.theme.Error
 import com.mazzika.lyrics.ui.theme.Gold
+import com.mazzika.lyrics.ui.theme.GoldDark
 import com.mazzika.lyrics.ui.theme.GoldDeep
 import com.mazzika.lyrics.ui.theme.Success
 
@@ -82,8 +102,15 @@ fun SyncScreen(
     val selectedDocument by viewModel.selectedDocument.collectAsState()
     val syncFilePath by viewModel.syncFilePath.collectAsState()
     val allDocuments by viewModel.allDocuments.collectAsState()
+    val allFolders by viewModel.allFolders.collectAsState()
     val connectedEndpoints by viewModel.connectedEndpoints.collectAsState()
     val discoveredEndpoints by viewModel.discoveredEndpoints.collectAsState()
+    val sessionName by viewModel.sessionName.collectAsState()
+    val transferProgress by viewModel.transferProgress.collectAsState()
+    val sessionEndedByPilot by viewModel.sessionEndedByPilot.collectAsState()
+    val isSearching by viewModel.isSearching.collectAsState()
+    val discoveryTimedOut by viewModel.discoveryTimedOut.collectAsState()
+    val isTempFile by viewModel.isTempFile.collectAsState()
 
     // Build required permissions based on API level
     val requiredPermissions = remember {
@@ -126,28 +153,55 @@ fun SyncScreen(
         }
     }
 
-    // Navigate to reader when a file is ready
+    // Navigate to reader when a file is ready (only once per session)
     LaunchedEffect(syncFilePath) {
-        if (syncFilePath != null) {
+        if (syncFilePath != null && !viewModel.hasNavigatedToReader) {
+            viewModel.markNavigatedToReader()
             onNavigateToReaderSync()
         }
+    }
+
+    // Dialog states
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var showJoinDialog by remember { mutableStateOf(false) }
+
+    // Session ended by pilot dialog
+    if (sessionEndedByPilot) {
+        SessionEndedDialog(
+            isTempFile = isTempFile,
+            onSave = {
+                viewModel.saveToCatalogue()
+            },
+            onDismiss = {
+                viewModel.acknowledgeSessionEnd()
+                viewModel.stopSession()
+            },
+        )
     }
 
     Scaffold(
         containerColor = DarkBackground,
     ) { innerPadding ->
         when (role) {
-            SyncRole.NONE -> NoneState(
-                allDocuments = allDocuments,
-                innerPadding = innerPadding,
-                onCreateSession = { doc ->
-                    requestPermissionsAndRun { viewModel.startAsPilot(doc) }
-                },
-                onJoinSession = {
-                    requestPermissionsAndRun { viewModel.startAsFollower() }
-                },
-            )
+            SyncRole.NONE -> {
+                NoneState(
+                    innerPadding = innerPadding,
+                    onCreateSession = {
+                        requestPermissionsAndRun {
+                            viewModel.initSessionName()
+                            showCreateDialog = true
+                        }
+                    },
+                    onJoinSession = {
+                        requestPermissionsAndRun {
+                            viewModel.startAsFollower()
+                            showJoinDialog = true
+                        }
+                    },
+                )
+            }
             SyncRole.PILOT -> PilotState(
+                sessionName = sessionName,
                 selectedDocument = selectedDocument,
                 connectedEndpoints = connectedEndpoints,
                 innerPadding = innerPadding,
@@ -156,148 +210,527 @@ fun SyncScreen(
                 },
                 onStop = { viewModel.stopSession() },
             )
-            SyncRole.FOLLOWER -> FollowerState(
-                discoveredEndpoints = discoveredEndpoints,
-                innerPadding = innerPadding,
-                onJoin = { endpointId -> viewModel.connectToEndpoint(endpointId) },
-                onCancel = { viewModel.stopSession() },
+            SyncRole.FOLLOWER -> {
+                if (!showJoinDialog) {
+                    FollowerActiveState(
+                        sessionName = sessionName,
+                        selectedDocument = selectedDocument,
+                        connectedEndpoints = connectedEndpoints,
+                        innerPadding = innerPadding,
+                        onOpenReader = { onNavigateToReaderSync() },
+                        onLeave = { viewModel.stopSession() },
+                    )
+                }
+            }
+        }
+    }
+
+    // Create session stepper dialog
+    if (showCreateDialog) {
+        CreateSessionDialog(
+            sessionName = sessionName,
+            onSessionNameChange = { viewModel.setSessionName(it) },
+            allDocuments = allDocuments,
+            allFolders = allFolders,
+            viewModel = viewModel,
+            onDismiss = { showCreateDialog = false },
+            onStart = { doc ->
+                viewModel.startAsPilot(doc)
+                showCreateDialog = false
+            },
+        )
+    }
+
+    // Join session dialog
+    if (showJoinDialog && role == SyncRole.FOLLOWER) {
+        JoinSessionDialog(
+            discoveredEndpoints = discoveredEndpoints,
+            isSearching = isSearching,
+            discoveryTimedOut = discoveryTimedOut,
+            transferProgress = transferProgress,
+            onJoin = { endpointId ->
+                viewModel.connectToEndpoint(endpointId)
+                showJoinDialog = false
+            },
+            onRestart = { viewModel.restartDiscovery() },
+            onDismiss = {
+                showJoinDialog = false
+                if (connectedEndpoints.isEmpty()) {
+                    viewModel.stopSession()
+                }
+            },
+        )
+    }
+}
+
+// ============================================================================
+// NONE state — Two cards only
+// ============================================================================
+
+@Composable
+private fun NoneState(
+    innerPadding: PaddingValues,
+    onCreateSession: () -> Unit,
+    onJoinSession: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "Synchronisation",
+            color = DarkTextPrimary,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Partagez des partitions en temps réel",
+            color = DarkTextMuted,
+            fontSize = 14.sp,
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            // Create session card
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onCreateSession() },
+                colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(color = GoldDeep, shape = CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CellTower,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Créer une session",
+                        color = DarkTextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Partager une partition",
+                        color = DarkTextMuted,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
+            // Join session card
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onJoinSession() },
+                colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(color = GoldDeep, shape = CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Rejoindre une session",
+                        color = DarkTextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Recevoir une partition",
+                        color = DarkTextMuted,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Create Session Stepper Dialog
+// ============================================================================
+
+@Composable
+private fun CreateSessionDialog(
+    sessionName: String,
+    onSessionNameChange: (String) -> Unit,
+    allDocuments: List<PdfDocumentEntity>,
+    allFolders: List<FolderEntity>,
+    viewModel: SyncViewModel,
+    onDismiss: () -> Unit,
+    onStart: (PdfDocumentEntity) -> Unit,
+) {
+    var currentStep by remember { mutableIntStateOf(0) }
+    var selectedDoc by remember { mutableStateOf<PdfDocumentEntity?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth(0.92f)
+            .padding(vertical = 24.dp),
+        containerColor = DarkSurface,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Column {
+                Text(
+                    text = "Créer une session",
+                    color = DarkTextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                // Step indicator
+                StepIndicator(currentStep = currentStep, totalSteps = 3)
+            }
+        },
+        text = {
+            when (currentStep) {
+                0 -> StepSessionName(
+                    sessionName = sessionName,
+                    onSessionNameChange = onSessionNameChange,
+                )
+                1 -> StepFilePicker(
+                    allDocuments = allDocuments,
+                    allFolders = allFolders,
+                    viewModel = viewModel,
+                    selectedDoc = selectedDoc,
+                    onSelectDoc = { selectedDoc = it },
+                )
+                2 -> StepConfirm(
+                    sessionName = sessionName,
+                    selectedDoc = selectedDoc,
+                )
+            }
+        },
+        confirmButton = {
+            Row {
+                if (currentStep > 0) {
+                    TextButton(onClick = { currentStep-- }) {
+                        Text("Précédent", color = DarkTextSecondary)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                when (currentStep) {
+                    0 -> Button(
+                        onClick = { currentStep = 1 },
+                        enabled = sessionName.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Gold,
+                            contentColor = DarkBackground,
+                            disabledContainerColor = GoldDark.copy(alpha = 0.3f),
+                            disabledContentColor = DarkTextMuted,
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Text("Suivant")
+                    }
+                    1 -> Button(
+                        onClick = { currentStep = 2 },
+                        enabled = selectedDoc != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Gold,
+                            contentColor = DarkBackground,
+                            disabledContainerColor = GoldDark.copy(alpha = 0.3f),
+                            disabledContentColor = DarkTextMuted,
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Text("Suivant")
+                    }
+                    2 -> Button(
+                        onClick = { selectedDoc?.let { onStart(it) } },
+                        enabled = sessionName.isNotBlank() && selectedDoc != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Gold,
+                            contentColor = DarkBackground,
+                            disabledContainerColor = GoldDark.copy(alpha = 0.3f),
+                            disabledContentColor = DarkTextMuted,
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CellTower,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Démarrer la session")
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = DarkTextMuted)
+            }
+        },
+    )
+}
+
+@Composable
+private fun StepIndicator(currentStep: Int, totalSteps: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        repeat(totalSteps) { index ->
+            val isActive = index <= currentStep
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(4.dp)
+                    .background(
+                        color = if (isActive) Gold else DarkSurfaceElevated,
+                        shape = RoundedCornerShape(2.dp),
+                    ),
             )
         }
     }
 }
 
 @Composable
-private fun NoneState(
-    allDocuments: List<PdfDocumentEntity>,
-    innerPadding: PaddingValues,
-    onCreateSession: (PdfDocumentEntity) -> Unit,
-    onJoinSession: () -> Unit,
+private fun StepSessionName(
+    sessionName: String,
+    onSessionNameChange: (String) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(innerPadding),
-        contentPadding = PaddingValues(bottom = 80.dp),
-    ) {
-        item {
-            Text(
-                text = "Synchronisation",
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
-                color = DarkTextPrimary,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
+    Column {
+        Text(
+            text = "Nom de la session",
+            color = DarkTextSecondary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedTextField(
+            value = sessionName,
+            onValueChange = onSessionNameChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = DarkTextPrimary,
+                unfocusedTextColor = DarkTextPrimary,
+                cursorColor = Gold,
+                focusedBorderColor = Gold,
+                unfocusedBorderColor = DarkSurfaceElevated,
+                focusedContainerColor = DarkBackground,
+                unfocusedContainerColor = DarkBackground,
+            ),
+            shape = RoundedCornerShape(10.dp),
+            placeholder = {
+                Text("Nom de la session", color = DarkTextMuted)
+            },
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Ce nom sera visible par les autres appareils",
+            color = DarkTextMuted,
+            fontSize = 12.sp,
+        )
+    }
+}
 
-        // Mode cards
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Create session card
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Wifi,
-                            contentDescription = null,
-                            tint = Gold,
-                            modifier = Modifier.size(36.dp),
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Créer session",
-                            color = DarkTextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "Partager une partition",
-                            color = DarkTextMuted,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
+@Composable
+private fun StepFilePicker(
+    allDocuments: List<PdfDocumentEntity>,
+    allFolders: List<FolderEntity>,
+    viewModel: SyncViewModel,
+    selectedDoc: PdfDocumentEntity?,
+    onSelectDoc: (PdfDocumentEntity) -> Unit,
+) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Catalogue", "Dossiers")
 
-                // Join session card
-                Card(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { onJoinSession() },
-                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = null,
-                            tint = Gold,
-                            modifier = Modifier.size(36.dp),
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Rejoindre",
-                            color = DarkTextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = "Rejoindre une session",
-                            color = DarkTextMuted,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
-            }
-        }
+    Column(modifier = Modifier.height(350.dp)) {
+        Text(
+            text = "Choisir une partition",
+            color = DarkTextSecondary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
 
-        item { Spacer(modifier = Modifier.height(24.dp)) }
-
-        // Document picker
-        item {
-            Text(
-                text = "Choisir une partition à partager",
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                color = DarkTextSecondary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-
-        if (allDocuments.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "Aucune partition dans le catalogue",
-                        color = DarkTextMuted,
-                        fontSize = 14.sp,
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = DarkBackground,
+            contentColor = Gold,
+            indicator = { tabPositions ->
+                if (selectedTab < tabPositions.size) {
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                        color = Gold,
                     )
                 }
+            },
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = {
+                        Text(
+                            text = title,
+                            color = if (selectedTab == index) Gold else DarkTextMuted,
+                            fontSize = 13.sp,
+                        )
+                    },
+                )
             }
-        } else {
-            items(allDocuments) { doc ->
-                DocumentPickerItem(
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        when (selectedTab) {
+            0 -> {
+                // Catalogue tab - all documents
+                if (allDocuments.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Aucune partition dans le catalogue",
+                            color = DarkTextMuted,
+                            fontSize = 14.sp,
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items(allDocuments) { doc ->
+                            FilePickerItem(
+                                document = doc,
+                                isSelected = selectedDoc?.id == doc.id,
+                                onClick = { onSelectDoc(doc) },
+                            )
+                        }
+                    }
+                }
+            }
+            1 -> {
+                // Folders tab
+                if (allFolders.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Aucun dossier",
+                            color = DarkTextMuted,
+                            fontSize = 14.sp,
+                        )
+                    }
+                } else {
+                    var expandedFolderId by remember { mutableStateOf<Long?>(null) }
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        allFolders.forEach { folder ->
+                            item(key = "folder_${folder.id}") {
+                                FolderPickerItem(
+                                    folder = folder,
+                                    isExpanded = expandedFolderId == folder.id,
+                                    onClick = {
+                                        expandedFolderId = if (expandedFolderId == folder.id) null else folder.id
+                                    },
+                                )
+                            }
+                            if (expandedFolderId == folder.id) {
+                                item(key = "folder_docs_${folder.id}") {
+                                    FolderDocumentsList(
+                                        folderId = folder.id,
+                                        viewModel = viewModel,
+                                        selectedDoc = selectedDoc,
+                                        onSelectDoc = onSelectDoc,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FolderDocumentsList(
+    folderId: Long,
+    viewModel: SyncViewModel,
+    selectedDoc: PdfDocumentEntity?,
+    onSelectDoc: (PdfDocumentEntity) -> Unit,
+) {
+    val docs by viewModel.getDocumentsInFolder(folderId)
+        .collectAsState(initial = emptyList())
+
+    if (docs.isEmpty()) {
+        Text(
+            text = "Aucune partition dans ce dossier",
+            color = DarkTextMuted,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(start = 32.dp, top = 4.dp, bottom = 4.dp),
+        )
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            docs.forEach { doc ->
+                FilePickerItem(
                     document = doc,
-                    onClick = { onCreateSession(doc) },
+                    isSelected = selectedDoc?.id == doc.id,
+                    onClick = { onSelectDoc(doc) },
+                    modifier = Modifier.padding(start = 16.dp),
                 )
             }
         }
@@ -305,39 +738,44 @@ private fun NoneState(
 }
 
 @Composable
-private fun DocumentPickerItem(
+private fun FilePickerItem(
     document: PdfDocumentEntity,
+    isSelected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    val bgColor = if (isSelected) GoldDeep.copy(alpha = 0.3f) else DarkBackground
+    val borderColor = if (isSelected) Gold else Color.Transparent
+
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        border = if (isSelected) BorderStroke(1.dp, borderColor) else null,
+        shape = RoundedCornerShape(8.dp),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = Icons.Filled.MusicNote,
                 contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(24.dp),
+                tint = if (isSelected) Gold else DarkTextMuted,
+                modifier = Modifier.size(20.dp),
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 12.dp),
+                    .padding(start = 10.dp),
             ) {
                 Text(
                     text = document.title,
                     color = DarkTextPrimary,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -345,21 +783,383 @@ private fun DocumentPickerItem(
                 Text(
                     text = "${document.pageCount} pages",
                     color = DarkTextMuted,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                 )
             }
+            if (isSelected) {
+                Text(
+                    text = "Sélectionné",
+                    color = Gold,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FolderPickerItem(
+    folder: FolderEntity,
+    isExpanded: Boolean,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isExpanded) DarkSurfaceElevated else DarkBackground,
+        ),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Folder,
+                contentDescription = null,
+                tint = Gold,
+                modifier = Modifier.size(20.dp),
+            )
             Text(
-                text = "Partager",
-                color = Gold,
+                text = folder.name,
+                color = DarkTextPrimary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 10.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = if (isExpanded) "Fermer" else "Ouvrir",
+                color = DarkTextMuted,
+                fontSize = 11.sp,
             )
         }
     }
 }
 
 @Composable
+private fun StepConfirm(
+    sessionName: String,
+    selectedDoc: PdfDocumentEntity?,
+) {
+    Column {
+        Text(
+            text = "Résumé",
+            color = DarkTextSecondary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = DarkBackground),
+            shape = RoundedCornerShape(10.dp),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.CellTower,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = sessionName,
+                        color = DarkTextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                if (selectedDoc != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = DarkTextSecondary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = selectedDoc.title,
+                                color = DarkTextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            Text(
+                                text = "${selectedDoc.pageCount} pages",
+                                color = DarkTextMuted,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "La session démarrera immédiatement et sera visible par les appareils à proximité.",
+            color = DarkTextMuted,
+            fontSize = 12.sp,
+        )
+    }
+}
+
+// ============================================================================
+// Join Session Dialog
+// ============================================================================
+
+@Composable
+private fun JoinSessionDialog(
+    discoveredEndpoints: List<NearbySessionManager.EndpointInfo>,
+    isSearching: Boolean,
+    discoveryTimedOut: Boolean,
+    transferProgress: Float?,
+    onJoin: (String) -> Unit,
+    onRestart: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth(0.92f)
+            .padding(vertical = 24.dp),
+        containerColor = DarkSurface,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                text = "Rejoindre une session",
+                color = DarkTextPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column(modifier = Modifier.height(300.dp)) {
+                // Transfer in progress
+                if (transferProgress != null) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Text(
+                            text = "Transfert en cours...",
+                            color = DarkTextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        LinearProgressIndicator(
+                            progress = { transferProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp),
+                            color = Gold,
+                            trackColor = DarkSurfaceElevated,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "${(transferProgress * 100).toInt()}%",
+                            color = Gold,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    return@Column
+                }
+
+                // Searching indicator
+                if (isSearching) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            color = Gold,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Text(
+                            text = "Recherche de sessions...",
+                            color = DarkTextSecondary,
+                            fontSize = 13.sp,
+                        )
+                    }
+                }
+
+                // Relancer button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(
+                        onClick = onRestart,
+                        enabled = !isSearching,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = null,
+                            tint = if (!isSearching) Gold else DarkTextMuted,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Relancer",
+                            color = if (!isSearching) Gold else DarkTextMuted,
+                            fontSize = 13.sp,
+                        )
+                    }
+                }
+
+                // Discovered sessions list
+                if (discoveredEndpoints.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (discoveryTimedOut) {
+                                Text(
+                                    text = "Aucune session trouvée",
+                                    color = DarkTextSecondary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Vérifiez que le chef de pupitre diffuse une session, puis relancez la recherche",
+                                    color = DarkTextMuted,
+                                    fontSize = 13.sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                )
+                            } else if (!isSearching) {
+                                Text(
+                                    text = "Appuyez sur Relancer pour chercher",
+                                    color = DarkTextMuted,
+                                    fontSize = 14.sp,
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(discoveredEndpoints) { endpoint ->
+                            DiscoveredEndpointItem(
+                                endpoint = endpoint,
+                                onJoin = { onJoin(endpoint.id) },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = DarkTextMuted)
+            }
+        },
+    )
+}
+
+@Composable
+private fun DiscoveredEndpointItem(
+    endpoint: NearbySessionManager.EndpointInfo,
+    onJoin: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = DarkBackground),
+        shape = RoundedCornerShape(10.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(color = GoldDeep, shape = CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Wifi,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Column {
+                    Text(
+                        text = endpoint.name,
+                        color = DarkTextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            Button(
+                onClick = onJoin,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Gold,
+                    contentColor = DarkBackground,
+                ),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = "Rejoindre",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+// ============================================================================
+// PILOT state (session active)
+// ============================================================================
+
+@Composable
 private fun PilotState(
+    sessionName: String,
     selectedDocument: PdfDocumentEntity?,
     connectedEndpoints: List<NearbySessionManager.EndpointInfo>,
     innerPadding: PaddingValues,
@@ -372,15 +1172,6 @@ private fun PilotState(
             .padding(innerPadding)
             .padding(20.dp),
     ) {
-        Text(
-            text = "Session active",
-            color = DarkTextPrimary,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
         // Active session card
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -390,41 +1181,57 @@ private fun PilotState(
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                    Box(modifier = Modifier.size(12.dp), contentAlignment = Alignment.Center) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             drawCircle(color = Success)
                         }
                     }
                     Text(
-                        text = "Diffusion en cours",
+                        text = "Session active",
                         color = Success,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
 
+                if (sessionName.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = sessionName,
+                        color = DarkTextSecondary,
+                        fontSize = 13.sp,
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (selectedDocument != null) {
-                    Text(
-                        text = selectedDocument.title,
-                        color = DarkTextPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "${selectedDocument.pageCount} pages",
-                        color = DarkTextMuted,
-                        fontSize = 13.sp,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = selectedDocument.title,
+                                color = DarkTextPrimary,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = "${selectedDocument.pageCount} pages",
+                                color = DarkTextMuted,
+                                fontSize = 13.sp,
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -450,10 +1257,10 @@ private fun PilotState(
                     Spacer(modifier = Modifier.height(8.dp))
                     connectedEndpoints.forEach { endpoint ->
                         Text(
-                            text = "• ${endpoint.name}",
+                            text = "  ${endpoint.name}",
                             color = DarkTextMuted,
                             fontSize = 13.sp,
-                            modifier = Modifier.padding(start = 8.dp),
+                            modifier = Modifier.padding(start = 8.dp, top = 2.dp),
                         )
                     }
                 }
@@ -499,17 +1306,23 @@ private fun PilotState(
                     .size(20.dp)
                     .padding(end = 4.dp),
             )
-            Text("Arrêter la session", fontSize = 15.sp)
+            Text("Arrêter la diffusion", fontSize = 15.sp)
         }
     }
 }
 
+// ============================================================================
+// FOLLOWER state (joined session, dialog dismissed)
+// ============================================================================
+
 @Composable
-private fun FollowerState(
-    discoveredEndpoints: List<NearbySessionManager.EndpointInfo>,
+private fun FollowerActiveState(
+    sessionName: String,
+    selectedDocument: PdfDocumentEntity?,
+    connectedEndpoints: List<NearbySessionManager.EndpointInfo>,
     innerPadding: PaddingValues,
-    onJoin: (String) -> Unit,
-    onCancel: () -> Unit,
+    onOpenReader: () -> Unit,
+    onLeave: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -517,198 +1330,183 @@ private fun FollowerState(
             .padding(innerPadding)
             .padding(20.dp),
     ) {
-        Text(
-            text = "Rejoindre",
-            color = DarkTextPrimary,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Searching indicator
+        // Session info card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             shape = RoundedCornerShape(14.dp),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                CircularProgressIndicator(
-                    color = Gold,
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp,
-                )
-                Column {
-                    Text(
-                        text = "Recherche de sessions...",
-                        color = DarkTextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Text(
-                        text = "${discoveredEndpoints.size} appareil(s) trouvé(s)",
-                        color = DarkTextMuted,
-                        fontSize = 13.sp,
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Discovered endpoints list
-        if (discoveredEndpoints.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "Aucune session trouvée",
-                        color = DarkTextMuted,
-                        fontSize = 15.sp,
-                    )
-                    Text(
-                        text = "Assurez-vous que le chef de pupitre diffuse une session",
-                        color = DarkTextMuted,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 4.dp, start = 16.dp, end = 16.dp),
-                    )
-                }
-            }
-        } else {
-            val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-            if (isTablet) {
-                val rows = discoveredEndpoints.chunked(2)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    rows.forEach { rowEndpoints ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            rowEndpoints.forEach { endpoint ->
-                                Box(modifier = Modifier.weight(1f)) {
-                                    DiscoveredEndpointItem(
-                                        endpoint = endpoint,
-                                        onJoin = { onJoin(endpoint.id) },
-                                    )
-                                }
-                            }
-                            if (rowEndpoints.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
+                    Box(modifier = Modifier.size(12.dp), contentAlignment = Alignment.Center) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawCircle(color = Success)
                         }
                     }
+                    Text(
+                        text = "Connecté",
+                        color = Success,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
-            } else {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    discoveredEndpoints.forEach { endpoint ->
-                        DiscoveredEndpointItem(
-                            endpoint = endpoint,
-                            onJoin = { onJoin(endpoint.id) },
+
+                if (sessionName.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = sessionName,
+                        color = DarkTextSecondary,
+                        fontSize = 13.sp,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (selectedDocument != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(20.dp),
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = selectedDocument.title,
+                                color = DarkTextPrimary,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Cancel button
-        TextButton(
-            onClick = onCancel,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = "Annuler",
-                color = DarkTextSecondary,
-                fontSize = 15.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DiscoveredEndpointItem(
-    endpoint: NearbySessionManager.EndpointInfo,
-    onJoin: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(10.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(color = GoldDeep, shape = CircleShape),
-                    contentAlignment = Alignment.Center,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Wifi,
+                        imageVector = Icons.Filled.People,
                         contentDescription = null,
                         tint = Gold,
                         modifier = Modifier.size(20.dp),
                     )
-                }
-                Column {
                     Text(
-                        text = endpoint.name,
-                        color = DarkTextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Text(
-                        text = endpoint.id,
-                        color = DarkTextMuted,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        text = "${connectedEndpoints.size} appareil(s) dans la session",
+                        color = DarkTextSecondary,
+                        fontSize = 14.sp,
                     )
                 }
-            }
-
-            Button(
-                onClick = onJoin,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Gold,
-                    contentColor = DarkBackground,
-                ),
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            ) {
-                Text(
-                    text = "Rejoindre",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Open reader button
+        Button(
+            onClick = onOpenReader,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Gold,
+                contentColor = DarkBackground,
+            ),
+            shape = RoundedCornerShape(10.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.MusicNote,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(20.dp)
+                    .padding(end = 4.dp),
+            )
+            Text("Ouvrir le lecteur", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Leave session button
+        OutlinedButton(
+            onClick = onLeave,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Error),
+            border = BorderStroke(1.dp, Error),
+            shape = RoundedCornerShape(10.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(20.dp)
+                    .padding(end = 4.dp),
+            )
+            Text("Quitter la session", fontSize = 15.sp)
+        }
     }
+}
+
+// ============================================================================
+// Session Ended Dialog (shown to follower when pilot ends session)
+// ============================================================================
+
+@Composable
+private fun SessionEndedDialog(
+    isTempFile: Boolean,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                text = "Session terminée",
+                color = DarkTextPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Text(
+                text = "Le chef de pupitre a mis fin à la session.",
+                color = DarkTextSecondary,
+                fontSize = 14.sp,
+            )
+        },
+        confirmButton = {
+            if (isTempFile) {
+                Button(
+                    onClick = {
+                        onSave()
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Gold,
+                        contentColor = DarkBackground,
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Save,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Sauvegarder le fichier")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fermer", color = DarkTextMuted)
+            }
+        },
+    )
 }

@@ -20,6 +20,10 @@ Application Android pour la troupe Mazzika Band. Permet d'importer, organiser et
 - Sources : stockage local, Google Drive, Dropbox (automatique via SAF si les apps sont installées)
 - Réception depuis d'autres apps via Intent "Partager vers Mazzika Lyrics"
 - A l'import : le fichier est copié dans le stockage interne (`filesDir/pdfs/`), une miniature est générée depuis la première page
+- **Règle universelle** : tout fichier importé depuis n'importe quelle section est automatiquement ajouté au catalogue
+- **Déduplication** : si un fichier avec le même hash SHA-256 existe déjà, l'import est ignoré silencieusement
+- **Import depuis l'accueil** : modale avec 2 choix (catalogue seul / catalogue + dossier avec sélecteur en grille)
+- **Import depuis un dossier** : le fichier est ajouté au catalogue ET au dossier courant
 
 ### 2.2 Catalogue
 
@@ -41,12 +45,14 @@ Application Android pour la troupe Mazzika Band. Permet d'importer, organiser et
 ### 2.4 Lecteur PDF
 
 - **Plein écran immersif** : barres système masquées, bottom nav masquée
-- **Navigation** : swipe horizontal avec animation page flip (curl effect, style livre)
-- **Zoom** : pinch-to-zoom libre (pan + zoom via `TransformableState`), double-tap pour reset 1x
-- **Conflit gestes** : quand zoomé, le swipe de page est désactivé — dézoomer d'abord pour changer de page
+- **Navigation** : swipe horizontal via HorizontalPager
+- **Zoom** : pinch-to-zoom 2 doigts (1x-5x), double-tap pour toggle zoom (1x ↔ 2.5x)
+- **Conflit gestes** : quand zoomé, le swipe de page est désactivé — dézoomer d'abord pour changer de page. 1 doigt quand zoomé = pan dans la page
 - **Cache** : 3 pages en mémoire (courante + précédente + suivante)
 - **Rendu** : `PdfRenderer` natif Android
-- **Barre d'outils** : tap au centre pour afficher/masquer — titre du document, bouton fermer, bouton session sync, indicateur de page
+- **Barre d'outils** : tap simple pour afficher/masquer — titre du document, indicateur de page, infos session (si active)
+- **Bouton fermer** : pill button "Fermer" centré en bas de l'écran (remplace le bouton retour en haut à gauche)
+- **Infos session dans toolbar** : icône colorée statut connexion (vert/orange/rouge) + nombre de connectés
 
 ### 2.5 Synchronisation (Nearby Connections)
 
@@ -66,11 +72,12 @@ Application Android pour la troupe Mazzika Band. Permet d'importer, organiser et
 
 | Type | Payload | Direction |
 |------|---------|-----------|
-| `SESSION_INFO` | `{ title, pageCount, fileHash }` | Pilote → Suiveurs |
+| `SESSION_INFO` | `{ title, pageCount, fileHash, sessionName }` | Pilote → Suiveurs |
 | `ALREADY_HAVE` | `{ fileHash }` | Suiveur → Pilote |
 | `NEED_FILE` | `{ fileHash }` | Suiveur → Pilote |
-| `FILE_TRANSFER` | Fichier PDF (bytes) | Pilote → Suiveurs |
+| `FILE_TRANSFER` | Fichier PDF (stream) | Pilote → Suiveurs |
 | `PAGE_CHANGE` | `{ page: Int }` | Pilote → Suiveurs |
+| `SESSION_END` | `{ reason: String }` | Pilote → Suiveurs |
 
 #### Transfert intelligent
 
@@ -155,9 +162,23 @@ com.mazzika.lyrics/
 
 ## 5. Navigation
 
+### Header fixe (Top App Bar Material 3)
+- **Toutes les pages** ont un header fixe
+- Tabs principaux : titre de la page
+- Écrans de détail : bouton retour (←) + titre
+- Le header reste visible au scroll
+
+### Bandeau de session persistant
+- Affiché sous le header, sur toutes les pages, tant qu'une session est active
+- Contenu : icône statut + nom session + nombre connectés
+- Vert = connecté, Rouge = connexion perdue
+- Au tap → redirige vers le lecteur de la session
+- Disparaît quand la session se termine
+
+### Routes
 ```
 BottomNav:
-├── Accueil (dossiers + récents)
+├── Accueil (cartes action + dossiers + récents)
 ├── Catalogue (tous les fichiers)
 ├── Session (sync Nearby)
 └── Paramètres
@@ -165,6 +186,12 @@ BottomNav:
 Hors BottomNav (plein écran) :
 ├── Lecteur PDF
 └── Lecteur PDF (mode sync)
+
+Popups modales (par-dessus n'importe quelle page) :
+├── Stepper création de session
+├── Popup rejoindre une session
+├── Modale import (catalogue / dossier)
+└── Sélecteur de dossier en grille
 ```
 
 - Navigation via Compose Navigation Component

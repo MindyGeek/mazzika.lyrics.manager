@@ -65,16 +65,6 @@ fun SettingsScreen(
                 .padding(innerPadding),
             contentPadding = PaddingValues(bottom = 80.dp),
         ) {
-            item {
-                Text(
-                    text = "Paramètres",
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
-                    color = DarkTextPrimary,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-
             // Affichage section
             item {
                 SectionLabel(title = "Affichage")

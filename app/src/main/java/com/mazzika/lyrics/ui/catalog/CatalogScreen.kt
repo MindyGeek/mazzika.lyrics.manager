@@ -73,7 +73,6 @@ import com.mazzika.lyrics.ui.theme.DarkTextPrimary
 import com.mazzika.lyrics.ui.theme.DarkTextSecondary
 import com.mazzika.lyrics.ui.theme.Gold
 import com.mazzika.lyrics.ui.theme.GoldDeep
-import com.mazzika.lyrics.ui.theme.PlayfairDisplay
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -105,11 +104,6 @@ fun CatalogScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 80.dp),
         ) {
-            // Header
-            item {
-                CatalogHeader(documentCount = documents.size)
-            }
-
             // Search bar
             item {
                 SearchBar(
@@ -188,32 +182,6 @@ fun CatalogScreen(
                 documentToAddToFolder = null
             },
         )
-    }
-}
-
-@Composable
-private fun CatalogHeader(documentCount: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column {
-            Text(
-                text = "Catalogue",
-                fontFamily = PlayfairDisplay,
-                fontWeight = FontWeight.Bold,
-                fontSize = 28.sp,
-                color = Gold,
-            )
-            Text(
-                text = "$documentCount fichier${if (documentCount != 1) "s" else ""}",
-                fontSize = 13.sp,
-                color = DarkTextMuted,
-            )
-        }
     }
 }
 

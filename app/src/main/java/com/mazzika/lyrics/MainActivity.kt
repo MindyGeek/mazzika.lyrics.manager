@@ -10,20 +10,32 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
 import com.mazzika.lyrics.data.preferences.UserPreferences.ThemeMode
 import com.mazzika.lyrics.ui.navigation.BottomNavBar
+import com.mazzika.lyrics.ui.navigation.MazzikaTopBar
 import com.mazzika.lyrics.ui.navigation.NavGraph
+import com.mazzika.lyrics.ui.navigation.Screen
+import com.mazzika.lyrics.ui.navigation.SessionBanner
 import com.mazzika.lyrics.ui.navigation.bottomNavItems
+import com.mazzika.lyrics.ui.navigation.getScreenInfo
+import com.mazzika.lyrics.ui.sync.SyncRole
+import com.mazzika.lyrics.ui.sync.SyncViewModel
 import com.mazzika.lyrics.ui.theme.MazzikaLyricsTheme
 import kotlinx.coroutines.launch
 
@@ -50,8 +62,55 @@ class MainActivity : ComponentActivity() {
                 val mainTabRoutes = bottomNavItems.map { it.screen.route }.toSet()
                 val showBottomBar = currentRoute in mainTabRoutes
 
+                val screenInfo = getScreenInfo(currentRoute)
+
+                val syncViewModel: SyncViewModel = viewModel()
+                val syncRole by syncViewModel.role.collectAsState()
+                val connectedEndpoints by syncViewModel.connectedEndpoints.collectAsState()
+                val selectedDocument by syncViewModel.selectedDocument.collectAsState()
+                val isSessionActive = syncRole != SyncRole.NONE
+                val sessionName = selectedDocument?.title ?: "Session"
+
+                var currentFolderName by remember { mutableStateOf<String?>(null) }
+                var currentFolderIcon by remember { mutableStateOf<String?>(null) }
+
+                LaunchedEffect(currentRoute) {
+                    if (currentRoute?.startsWith("folder/") != true) {
+                        currentFolderName = null
+                        currentFolderIcon = null
+                    }
+                }
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
+                    topBar = {
+                        if (screenInfo.showTopBar) {
+                            Column {
+                                MazzikaTopBar(
+                                    title = screenInfo.title,
+                                    showBackButton = screenInfo.showBackButton,
+                                    onBackClick = { navController.popBackStack() },
+                                    folderName = if (currentRoute?.startsWith("folder/") == true) currentFolderName else null,
+                                    folderIcon = if (currentRoute?.startsWith("folder/") == true) currentFolderIcon else null,
+                                )
+                                SessionBanner(
+                                    isVisible = isSessionActive,
+                                    role = syncRole,
+                                    sessionName = sessionName,
+                                    connectedCount = connectedEndpoints.size,
+                                    isConnectionLost = false,
+                                    onClick = {
+                                        val doc = selectedDocument
+                                        if (syncRole == SyncRole.PILOT && doc != null) {
+                                            navController.navigate(Screen.Reader.createRoute(doc.id))
+                                        } else if (syncRole == SyncRole.FOLLOWER) {
+                                            navController.navigate(Screen.ReaderSync.route)
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    },
                     bottomBar = {
                         AnimatedVisibility(
                             visible = showBottomBar,
@@ -67,6 +126,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding),
+                        onFolderChanged = { name, icon ->
+                            currentFolderName = name
+                            currentFolderIcon = icon
+                        },
                     )
                 }
             }
