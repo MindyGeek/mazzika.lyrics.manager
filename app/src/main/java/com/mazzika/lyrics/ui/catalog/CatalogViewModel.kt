@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mazzika.lyrics.MazzikaApplication
 import com.mazzika.lyrics.data.db.entity.FolderDocumentRefEntity
+import com.mazzika.lyrics.data.db.entity.FolderEntity
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
 import com.mazzika.lyrics.data.file.FileManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,8 +23,12 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
 
     private val database = (application as MazzikaApplication).database
     private val pdfDocumentDao = database.pdfDocumentDao()
+    private val folderDao = database.folderDao()
     private val folderDocumentRefDao = database.folderDocumentRefDao()
     private val fileManager = FileManager(application)
+
+    val allFolders: StateFlow<List<FolderEntity>> = folderDao.getRootFolders()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val searchQuery: MutableStateFlow<String> = MutableStateFlow("")
     val sortMode: MutableStateFlow<SortMode> = MutableStateFlow(SortMode.RECENT)

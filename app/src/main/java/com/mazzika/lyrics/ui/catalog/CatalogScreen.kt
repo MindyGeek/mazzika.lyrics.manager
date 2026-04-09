@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,6 +45,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mazzika.lyrics.data.db.entity.FolderEntity
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
 import com.mazzika.lyrics.ui.theme.DarkBackground
 import com.mazzika.lyrics.ui.theme.DarkSurface
@@ -85,6 +88,9 @@ fun CatalogScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val sortMode by viewModel.sortMode.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
+    val allFolders by viewModel.allFolders.collectAsState()
+
+    var documentToAddToFolder by remember { mutableStateOf<Long?>(null) }
 
     val pdfPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -131,6 +137,7 @@ fun CatalogScreen(
                         documents = documents,
                         onNavigateToReader = onNavigateToReader,
                         onDelete = { viewModel.deleteDocument(it) },
+                        onAddToFolder = { documentToAddToFolder = it },
                     )
                 }
             } else {
@@ -139,6 +146,7 @@ fun CatalogScreen(
                         document = document,
                         onClick = { onNavigateToReader(document.id) },
                         onDelete = { viewModel.deleteDocument(document.id) },
+                        onAddToFolder = { documentToAddToFolder = document.id },
                     )
                 }
             }
@@ -168,6 +176,18 @@ fun CatalogScreen(
                 Icon(imageVector = Icons.Filled.Add, contentDescription = "Importer un PDF")
             }
         }
+    }
+
+    // Dialog: Ajouter à un dossier
+    documentToAddToFolder?.let { docId ->
+        AddToFolderDialog(
+            folders = allFolders,
+            onDismiss = { documentToAddToFolder = null },
+            onFolderSelected = { folderId ->
+                viewModel.addToFolder(docId, folderId)
+                documentToAddToFolder = null
+            },
+        )
     }
 }
 
@@ -289,6 +309,7 @@ private fun TwoColumnFileGrid(
     documents: List<PdfDocumentEntity>,
     onNavigateToReader: (Long) -> Unit,
     onDelete: (Long) -> Unit,
+    onAddToFolder: (Long) -> Unit,
 ) {
     val rows = documents.chunked(2)
     Column(
@@ -308,6 +329,7 @@ private fun TwoColumnFileGrid(
                             document = document,
                             onClick = { onNavigateToReader(document.id) },
                             onDelete = { onDelete(document.id) },
+                            onAddToFolder = { onAddToFolder(document.id) },
                             isGridItem = true,
                         )
                     }
@@ -326,6 +348,7 @@ private fun FileCard(
     document: PdfDocumentEntity,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    onAddToFolder: () -> Unit,
     isGridItem: Boolean = false,
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -394,6 +417,13 @@ private fun FileCard(
                         },
                     )
                     DropdownMenuItem(
+                        text = { Text("Ajouter à un dossier", color = DarkTextPrimary) },
+                        onClick = {
+                            showMenu = false
+                            onAddToFolder()
+                        },
+                    )
+                    DropdownMenuItem(
                         text = { Text("Supprimer", color = Color(0xFFCF6679)) },
                         onClick = {
                             showMenu = false
@@ -404,6 +434,53 @@ private fun FileCard(
             }
         }
     }
+}
+
+@Composable
+private fun AddToFolderDialog(
+    folders: List<FolderEntity>,
+    onDismiss: () -> Unit,
+    onFolderSelected: (Long) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurfaceElevated,
+        title = { Text("Ajouter à un dossier", color = DarkTextPrimary) },
+        text = {
+            if (folders.isEmpty()) {
+                Text("Aucun dossier. Créez-en un depuis l'accueil.", color = DarkTextMuted, fontSize = 14.sp)
+            } else {
+                Column {
+                    folders.forEach { folder ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onFolderSelected(folder.id) }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = folder.icon ?: "\uD83D\uDCC1",
+                                fontSize = 20.sp,
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = folder.name,
+                                color = DarkTextPrimary,
+                                fontSize = 15.sp,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = DarkTextSecondary)
+            }
+        },
+    )
 }
 
 @Composable
