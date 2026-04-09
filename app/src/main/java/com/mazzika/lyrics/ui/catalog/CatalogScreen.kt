@@ -3,7 +3,6 @@ package com.mazzika.lyrics.ui.catalog
 // thumbnail imports removed
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -35,9 +33,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,8 +49,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-// unused imports removed
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,11 +65,20 @@ import com.mazzika.lyrics.ui.theme.DarkTextMuted
 import com.mazzika.lyrics.ui.theme.DarkTextPrimary
 import com.mazzika.lyrics.ui.theme.DarkTextSecondary
 import com.mazzika.lyrics.ui.theme.Gold
-import com.mazzika.lyrics.ui.theme.GoldDeep
-// File import removed
+import com.mazzika.lyrics.ui.theme.GoldLight
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+// Gold glow gradient for file item icon
+private val GoldGlowGradient = Brush.linearGradient(
+    listOf(Color(0x26C5A028), Color(0x14C5A028))
+)
+
+// Gold gradient for active chip
+private val GoldChipGradient = Brush.linearGradient(
+    listOf(Gold, GoldLight)
+)
 
 @Composable
 fun CatalogScreen(
@@ -170,7 +174,7 @@ fun CatalogScreen(
         }
     }
 
-    // Dialog: Ajouter à un dossier
+    // Dialog: Ajouter a un dossier
     documentToAddToFolder?.let { docId ->
         AddToFolderDialog(
             folders = allFolders,
@@ -193,7 +197,7 @@ private fun SearchBar(
         onValueChange = onQueryChange,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         placeholder = { Text("Rechercher...", color = DarkTextMuted) },
         leadingIcon = {
             Icon(
@@ -203,10 +207,10 @@ private fun SearchBar(
             )
         },
         singleLine = true,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Gold,
-            unfocusedBorderColor = DarkSurface,
+            unfocusedBorderColor = Color.Transparent,
             focusedTextColor = DarkTextPrimary,
             unfocusedTextColor = DarkTextPrimary,
             focusedContainerColor = DarkSurface,
@@ -216,57 +220,55 @@ private fun SearchBar(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SortChips(
     currentMode: SortMode,
     onModeChange: (SortMode) -> Unit,
 ) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item {
-            FilterChip(
-                selected = currentMode == SortMode.RECENT,
-                onClick = { onModeChange(SortMode.RECENT) },
-                label = { Text("Récents", fontSize = 13.sp) },
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = DarkSurface,
-                    selectedContainerColor = GoldDeep,
-                    labelColor = DarkTextSecondary,
-                    selectedLabelColor = Gold,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = currentMode == SortMode.RECENT,
-                    borderColor = DarkSurface,
-                    selectedBorderColor = Gold,
-                ),
+        SortChipItem(
+            label = "R\u00E9cents",
+            selected = currentMode == SortMode.RECENT,
+            onClick = { onModeChange(SortMode.RECENT) },
+        )
+        SortChipItem(
+            label = "A-Z",
+            selected = currentMode == SortMode.TITLE,
+            onClick = { onModeChange(SortMode.TITLE) },
+        )
+    }
+}
+
+@Composable
+private fun SortChipItem(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .then(
+                if (selected) {
+                    Modifier.background(GoldChipGradient)
+                } else {
+                    Modifier.background(DarkSurface)
+                }
             )
-        }
-        item {
-            FilterChip(
-                selected = currentMode == SortMode.TITLE,
-                onClick = { onModeChange(SortMode.TITLE) },
-                label = { Text("A-Z", fontSize = 13.sp) },
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = DarkSurface,
-                    selectedContainerColor = GoldDeep,
-                    labelColor = DarkTextSecondary,
-                    selectedLabelColor = Gold,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = currentMode == SortMode.TITLE,
-                    borderColor = DarkSurface,
-                    selectedBorderColor = Gold,
-                ),
-            )
-        }
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 7.dp),
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (selected) Color(0xFF0A0800) else DarkTextSecondary,
+        )
     }
 }
 
@@ -281,8 +283,8 @@ private fun TwoColumnFileGrid(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         rows.forEach { rowDocs ->
             Row(
@@ -319,46 +321,54 @@ private fun FileCard(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                horizontal = if (isGridItem) 0.dp else 20.dp,
-                vertical = if (isGridItem) 0.dp else 6.dp,
-            )
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.12f)),
+                horizontal = if (isGridItem) 0.dp else 16.dp,
+                vertical = if (isGridItem) 0.dp else 3.dp,
+            ),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(DarkSurface)
+                .clickable { onClick() }
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Thumbnail
-            DocumentThumbnail()
+            // Gold glow icon box with 🎵 emoji
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(GoldGlowGradient),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "\uD83C\uDFB5", // 🎵
+                    fontSize = 20.sp,
+                    color = Gold,
+                )
+            }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = document.title,
                     color = DarkTextPrimary,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "${document.pageCount} page${if (document.pageCount != 1) "s" else ""}",
+                    text = "${document.pageCount} page${if (document.pageCount != 1) "s" else ""} \u00B7 ${formatDate(document.importedAt)}",
                     color = DarkTextMuted,
-                    fontSize = 12.sp,
-                )
-                Text(
-                    text = formatDate(document.importedAt),
-                    color = DarkTextMuted,
-                    fontSize = 11.sp,
+                    fontSize = 11.5.sp,
                 )
             }
 
@@ -383,7 +393,7 @@ private fun FileCard(
                         },
                     )
                     DropdownMenuItem(
-                        text = { Text("Ajouter à un dossier", color = DarkTextPrimary) },
+                        text = { Text("Ajouter \u00E0 un dossier", color = DarkTextPrimary) },
                         onClick = {
                             showMenu = false
                             onAddToFolder()
@@ -411,10 +421,10 @@ private fun AddToFolderDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkSurfaceElevated,
-        title = { Text("Ajouter à un dossier", color = DarkTextPrimary) },
+        title = { Text("Ajouter \u00E0 un dossier", color = DarkTextPrimary) },
         text = {
             if (folders.isEmpty()) {
-                Text("Aucun dossier. Créez-en un depuis l'accueil.", color = DarkTextMuted, fontSize = 14.sp)
+                Text("Aucun dossier. Cr\u00E9ez-en un depuis l'accueil.", color = DarkTextMuted, fontSize = 14.sp)
             } else {
                 Column {
                     folders.forEach { folder ->
@@ -450,29 +460,11 @@ private fun AddToFolderDialog(
 }
 
 @Composable
-private fun DocumentThumbnail() {
-    Box(
-        modifier = Modifier
-            .size(56.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(DarkSurfaceElevated),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Filled.MusicNote,
-            contentDescription = null,
-            tint = Gold,
-            modifier = Modifier.size(28.dp),
-        )
-    }
-}
-
-@Composable
 private fun EmptyCatalogState() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 48.dp),
+            .padding(horizontal = 16.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
