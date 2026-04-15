@@ -87,6 +87,11 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     private var discoveryTimeoutJob: Job? = null
 
+    // Follower-side: original title/fileName advertised by the pilot in SessionInfo.
+    // Used to rename the received temp file and to populate the catalog entry.
+    private var pendingTitle: String? = null
+    private var pendingFileName: String? = null
+
     fun setSessionName(name: String) {
         _sessionName.value = name
     }
@@ -222,7 +227,11 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             }
             when (message) {
                 is SyncMessage.SessionInfo -> {
-                    Log.d(TAG, "SessionInfo received: title=${message.title}, hash=${message.fileHash}")
+                    Log.d(TAG, "SessionInfo received: title=${message.title}, fileName=${message.fileName}, hash=${message.fileHash}")
+                    // Remember the original title/filename so we can name the temp file
+                    // correctly when the payload arrives (and later when saving to catalog).
+                    pendingTitle = message.title
+                    pendingFileName = message.fileName
                     val existing = app.database.pdfDocumentDao().getByHash(message.fileHash)
                     if (existing != null) {
                         Log.d(TAG, "File already exists locally at ${existing.filePath}")
@@ -273,7 +282,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun handleIncomingFile(bytes: ByteArray) {
         viewModelScope.launch {
-            val tempPath = app.fileManager.saveTempFile(bytes, "sync_received.pdf")
+            val baseName = pendingFileName ?: "sync_received.pdf"
+            val tempPath = app.fileManager.saveTempFile(bytes, baseName)
             val autoSave = app.userPreferences.autoSaveSync
                 .stateIn(viewModelScope, SharingStarted.Eagerly, false).value
 
@@ -292,17 +302,53 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
     fun handleIncomingFilePath(path: String) {
         Log.d(TAG, "handleIncomingFilePath: $path")
         viewModelScope.launch {
+            // Rename the incoming temp file to reflect the original filename advertised
+            // by the pilot. The transport-layer placeholder name ("sync_received.pdf")
+            // is replaced while preserving the existing timestamp prefix so names stay
+            // unique on disk.
+            val effectivePath = pendingFileName?.let { renameTempFile(path, it) } ?: path
+
             val autoSave = app.userPreferences.autoSaveSync
                 .stateIn(viewModelScope, SharingStarted.Eagerly, false).value
 
             if (autoSave) {
-                val finalPath = app.fileManager.moveTempToCatalog(path)
+                val finalPath = app.fileManager.moveTempToCatalog(effectivePath)
                 _syncFilePath.value = finalPath
                 _isTempFile.value = false
             } else {
-                _syncFilePath.value = path
+                _syncFilePath.value = effectivePath
                 _isTempFile.value = true
             }
+        }
+    }
+
+    /**
+     * Rename a temp file from `<timestamp>_sync_received.pdf` (or similar) to
+     * `<timestamp>_<originalFileName>`. Returns the new path, or the original path
+     * if the rename failed.
+     */
+    private fun renameTempFile(originalPath: String, originalFileName: String): String {
+        return try {
+            val oldFile = java.io.File(originalPath)
+            if (!oldFile.exists()) return originalPath
+            val sanitized = originalFileName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            val ensured = if (sanitized.endsWith(".pdf", ignoreCase = true)) sanitized else "$sanitized.pdf"
+            // Preserve the timestamp prefix if there is one so concurrent receptions
+            // from the same pilot keep distinct filenames on disk.
+            val oldName = oldFile.name
+            val prefix = oldName.substringBefore('_', missingDelimiterValue = "").let {
+                if (it.toLongOrNull() != null) "${it}_" else "${System.currentTimeMillis()}_"
+            }
+            val newFile = java.io.File(oldFile.parent, "$prefix$ensured")
+            if (oldFile.renameTo(newFile)) {
+                Log.d(TAG, "Renamed temp file → ${newFile.absolutePath}")
+                newFile.absolutePath
+            } else {
+                originalPath
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "renameTempFile failed", e)
+            originalPath
         }
     }
 
@@ -316,9 +362,15 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             val hash = app.fileManager.computeHash(file)
             val pageCount = app.fileManager.getPageCount(file)
             val thumbnailPath = app.fileManager.generateThumbnail(file, hash)
+            // Prefer the title/filename sent by the pilot; fall back to the on-disk
+            // name (minus the timestamp prefix added by FileManager) otherwise.
+            val originalFileName = pendingFileName
+                ?: file.name.substringAfter('_', missingDelimiterValue = file.name)
+            val originalTitle = pendingTitle
+                ?: originalFileName.substringBeforeLast('.')
             val entity = com.mazzika.lyrics.data.db.entity.PdfDocumentEntity(
-                title = file.nameWithoutExtension,
-                fileName = file.name,
+                title = originalTitle,
+                fileName = originalFileName,
                 filePath = finalPath,
                 fileHash = hash,
                 pageCount = pageCount,
@@ -413,6 +465,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val message = SyncMessage.SessionInfo(
                     title = doc.title,
+                    fileName = doc.fileName,
                     pageCount = doc.pageCount,
                     fileHash = doc.fileHash,
                 )
@@ -449,6 +502,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         _transferProgress.value = null
         _isSearching.value = false
         _discoveryTimedOut.value = false
+        pendingTitle = null
+        pendingFileName = null
         _navigatedToReader = false
     }
 
