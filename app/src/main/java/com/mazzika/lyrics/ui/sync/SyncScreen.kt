@@ -887,41 +887,62 @@ private fun CreateSessionDialog(
                 2 -> ConfirmStep(sessionName = sessionName, selectedDoc = selectedDoc)
             }
         },
+        // All action buttons live in the single `confirmButton` slot so they never
+        // compete for space with Material's split confirm/dismiss layout.
+        // Primary gold action is full-width on top; secondary text buttons sit below.
         confirmButton = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (currentStep > 0) {
-                    TextButton(onClick = { currentStep-- }) {
-                        Text("Précédent", color = tokens.textMid, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                }
-                val canNext = when (currentStep) {
-                    0 -> sessionName.isNotBlank()
-                    1 -> selectedDoc != null
-                    2 -> selectedDoc != null
-                    else -> false
-                }
+            val canNext = when (currentStep) {
+                0 -> sessionName.isNotBlank()
+                1 -> selectedDoc != null
+                2 -> selectedDoc != null
+                else -> false
+            }
+            Column(modifier = Modifier.fillMaxWidth()) {
                 PrimaryGoldButton(
                     text = if (currentStep == 2) "Démarrer la session" else "Suivant",
                     onClick = {
                         if (currentStep == 2) selectedDoc?.let { onStart(it) }
                         else currentStep++
                     },
-                    modifier = Modifier.width(180.dp),
                     enabled = canNext,
                     leadingContent = if (currentStep == 2) {
                         {
-                            Icon(Icons.Filled.CellTower, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Filled.CellTower,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
                         }
                     } else null,
                 )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (currentStep > 0) {
+                        TextButton(onClick = { currentStep-- }) {
+                            Text(
+                                "Précédent",
+                                color = tokens.textMid,
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text(
+                            "Annuler",
+                            color = tokens.textMid,
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Annuler", color = tokens.textMid, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
-            }
-        },
+        dismissButton = null,
     )
 }
 
