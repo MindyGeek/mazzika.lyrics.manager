@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -56,8 +57,6 @@ import com.mazzika.lyrics.ui.theme.LocalStudioTokens
 private enum class CatalogChip(val label: String) {
     RECENT("Récents"),
     A_Z("A-Z"),
-    BY_FOLDER("Par dossier"),
-    FAVORITES("Favoris"),
 }
 
 @Composable
@@ -68,11 +67,11 @@ fun CatalogScreen(
     val tokens = LocalStudioTokens.current
     val documents by viewModel.documents.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val sortMode by viewModel.sortMode.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
     val allFolders by viewModel.allFolders.collectAsState()
 
     var documentToAddToFolder by remember { mutableStateOf<Long?>(null) }
+    var documentToDelete by remember { mutableStateOf<PdfDocumentEntity?>(null) }
     var selectedChip by remember { mutableStateOf(CatalogChip.RECENT) }
 
     val pdfPickerLauncher = rememberLauncherForActivityResult(
@@ -80,65 +79,42 @@ fun CatalogScreen(
     ) { uri -> uri?.let { viewModel.importPdf(it) } }
 
     Box(modifier = Modifier.fillMaxSize().background(tokens.bg)) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 100.dp),
-        ) {
-            // ── Title + count
-            item { CatalogTitle(count = documents.size) }
-
-            // ── Search
-            item {
-                Box(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp)) {
-                    SearchInputBar(
-                        value = searchQuery,
-                        onValueChange = { viewModel.setSearchQuery(it) },
-                    )
-                }
-            }
-
-            // ── Filter chips
-            item {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(CatalogChip.entries) { chip ->
-                        FilterChip(
-                            label = chip.label,
-                            selected = chip == selectedChip,
-                            onClick = {
-                                selectedChip = chip
-                                when (chip) {
-                                    CatalogChip.RECENT -> viewModel.setSortMode(SortMode.RECENT)
-                                    CatalogChip.A_Z -> viewModel.setSortMode(SortMode.TITLE)
-                                    else -> Unit
-                                }
-                            },
-                        )
+        // Sticky header (Column that stays fixed) + scrolling list below
+        Column(modifier = Modifier.fillMaxSize()) {
+            CatalogStickyHeader(
+                count = documents.size,
+                query = searchQuery,
+                onQueryChange = { viewModel.setSearchQuery(it) },
+                selectedChip = selectedChip,
+                onChipSelected = { chip ->
+                    selectedChip = chip
+                    when (chip) {
+                        CatalogChip.RECENT -> viewModel.setSortMode(SortMode.RECENT)
+                        CatalogChip.A_Z -> viewModel.setSortMode(SortMode.TITLE)
                     }
-                }
-            }
-
-            // ── Documents list
-            if (documents.isEmpty() && !isImporting) {
-                item { EmptyCatalogState() }
-            } else {
-                items(documents) { doc ->
-                    Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
-                        DocRowWithMenu(
-                            document = doc,
-                            onClick = { onNavigateToReader(doc.id) },
-                            onAddToFolder = { documentToAddToFolder = doc.id },
-                            onDelete = { viewModel.deleteDocument(doc.id) },
-                        )
+                },
+            )
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 100.dp),
+            ) {
+                if (documents.isEmpty() && !isImporting) {
+                    item { EmptyCatalogState() }
+                } else {
+                    items(documents) { doc ->
+                        Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+                            DocRowWithMenu(
+                                document = doc,
+                                onClick = { onNavigateToReader(doc.id) },
+                                onAddToFolder = { documentToAddToFolder = doc.id },
+                                onDelete = { documentToDelete = doc },
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // ── Loading overlay
         if (isImporting) {
             Box(
                 modifier = Modifier
@@ -150,7 +126,6 @@ fun CatalogScreen(
             }
         }
 
-        // ── FAB
         StudioFab(
             onClick = { pdfPickerLauncher.launch(arrayOf("application/pdf")) },
             modifier = Modifier
@@ -161,7 +136,6 @@ fun CatalogScreen(
         }
     }
 
-    // Add-to-folder dialog
     val docId = documentToAddToFolder
     if (docId != null) {
         FolderSelectorDialogContent(
@@ -174,32 +148,68 @@ fun CatalogScreen(
             },
         )
     }
+
+    val docToDelete = documentToDelete
+    if (docToDelete != null) {
+        DeleteConfirmDialog(
+            title = docToDelete.title,
+            onDismiss = { documentToDelete = null },
+            onConfirm = {
+                viewModel.deleteDocument(docToDelete.id)
+                documentToDelete = null
+            },
+        )
+    }
 }
 
 @Composable
-private fun CatalogTitle(count: Int) {
+private fun CatalogStickyHeader(
+    count: Int,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    selectedChip: CatalogChip,
+    onChipSelected: (CatalogChip) -> Unit,
+) {
     val tokens = LocalStudioTokens.current
-    Row(
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        Text(
-            text = "Catalogue",
-            fontFamily = Inter,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = 24.sp,
-            letterSpacing = (-0.72).sp,
-            color = tokens.text,
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = "$count morceaux",
-            fontFamily = Inter,
-            fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
-            color = tokens.textMid,
-            modifier = Modifier.padding(bottom = 4.dp),
-        )
+    Column(modifier = Modifier.background(tokens.bg)) {
+        Row(
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(
+                text = "Catalogue",
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 24.sp,
+                letterSpacing = (-0.72).sp,
+                color = tokens.text,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "$count morceaux",
+                fontFamily = Inter,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = tokens.textMid,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+        Box(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp)) {
+            SearchInputBar(value = query, onValueChange = onQueryChange)
+        }
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(CatalogChip.entries) { chip ->
+                FilterChip(
+                    label = chip.label,
+                    selected = chip == selectedChip,
+                    onClick = { onChipSelected(chip) },
+                )
+            }
+        }
     }
 }
 
@@ -210,9 +220,10 @@ private fun DocRowWithMenu(
     onAddToFolder: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val tokens = LocalStudioTokens.current
     var showMenu by remember { mutableStateOf(false) }
 
-    Box {
+    Box(modifier = Modifier.fillMaxWidth()) {
         DocRow(
             title = document.title,
             letter = document.title.firstOrNull()?.uppercase() ?: "?",
@@ -221,25 +232,74 @@ private fun DocRowWithMenu(
             onClick = onClick,
             onMoreClick = { showMenu = true },
         )
+        // Dropdown anchored to the right edge of the row; the `offset` shifts it
+        // leftward so the menu sits to the LEFT of the ⋯ button rather than
+        // overlapping it.
         DropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false },
-            modifier = Modifier.align(Alignment.TopEnd),
+            offset = DpOffset(x = (-160).dp, y = 0.dp),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .background(tokens.surface),
         ) {
             DropdownMenuItem(
-                text = { Text("Ouvrir", fontFamily = Inter) },
+                text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
                 onClick = { showMenu = false; onClick() },
             )
             DropdownMenuItem(
-                text = { Text("Ranger dans un dossier", fontFamily = Inter) },
+                text = { Text("Ranger dans un dossier", fontFamily = Inter, color = tokens.text) },
                 onClick = { showMenu = false; onAddToFolder() },
             )
             DropdownMenuItem(
-                text = { Text("Supprimer", fontFamily = Inter) },
+                text = { Text("Supprimer", fontFamily = Inter, color = tokens.danger) },
                 onClick = { showMenu = false; onDelete() },
             )
         }
     }
+}
+
+@Composable
+private fun DeleteConfirmDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val tokens = LocalStudioTokens.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = tokens.surface,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                "Supprimer ce fichier ?",
+                color = tokens.text,
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 18.sp,
+            )
+        },
+        text = {
+            Text(
+                text = "« $title » sera retiré du catalogue. Cette action est irréversible.",
+                color = tokens.textMid,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Supprimer", color = tokens.danger, fontFamily = Inter, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = tokens.textMid, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+            }
+        },
+    )
 }
 
 @Composable

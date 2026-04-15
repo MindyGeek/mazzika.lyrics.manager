@@ -57,6 +57,13 @@ fun NavGraph(
                         restoreState = true
                     }
                 },
+                onNavigateToCatalog = {
+                    navController.navigate(Screen.Catalog.route) {
+                        popUpTo(Screen.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
             )
         }
 

@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,6 +85,7 @@ private val folderIconOptions = listOf("📁", "🎶", "🎸", "⭐", "🎼", "�
 fun HomeScreen(
     onNavigateToReader: (Long) -> Unit,
     onNavigateToSync: () -> Unit,
+    onNavigateToCatalog: () -> Unit,
     viewModel: HomeViewModel = viewModel(),
 ) {
     val tokens = LocalStudioTokens.current
@@ -95,7 +97,12 @@ fun HomeScreen(
     val syncRole by syncViewModel.role.collectAsState()
     val selectedDocument by syncViewModel.selectedDocument.collectAsState()
     val connectedEndpoints by syncViewModel.connectedEndpoints.collectAsState()
-    val isSessionActive = syncRole != SyncRole.NONE
+    val syncFilePath by syncViewModel.syncFilePath.collectAsState()
+    // A session is "really active" when the user is the pilot, or when they are a
+    // follower who already received the shared file. Just being on the discovery
+    // screen (FOLLOWER + no file) does NOT count.
+    val isSessionActive = syncRole == SyncRole.PILOT ||
+        (syncRole == SyncRole.FOLLOWER && syncFilePath != null)
 
     var showImportDialog by remember { mutableStateOf(false) }
 
@@ -141,7 +148,7 @@ fun HomeScreen(
                         title = "Récemment joué",
                         count = recentDocuments.size.takeIf { it > 0 },
                         link = if (recentDocuments.size > 3) "Voir tout" else null,
-                        onLinkClick = {},
+                        onLinkClick = onNavigateToCatalog,
                     )
                 }
             }
@@ -630,8 +637,20 @@ fun CreateFolderDialog(
                                     .size(44.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
-                                        if (isSelected) tokens.gold.copy(alpha = 0.18f)
-                                        else if (tokens.isDark) tokens.surfaceHi else tokens.bg,
+                                        if (isSelected)
+                                            Brush.linearGradient(listOf(tokens.goldLight, tokens.gold))
+                                        else
+                                            Brush.linearGradient(
+                                                listOf(
+                                                    if (tokens.isDark) tokens.surfaceHi else tokens.bg,
+                                                    if (tokens.isDark) tokens.surfaceHi else tokens.bg,
+                                                ),
+                                            ),
+                                    )
+                                    .border(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) tokens.gold else tokens.cardBorder,
+                                        shape = RoundedCornerShape(10.dp),
                                     )
                                     .clickable { selectedIcon = icon },
                                 contentAlignment = Alignment.Center,

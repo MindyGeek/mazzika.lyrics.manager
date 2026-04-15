@@ -213,7 +213,11 @@ fun FolderDetailScreen(
 @Composable
 private fun SpeedDialItem(label: String, icon: ImageVector, onClick: () -> Unit) {
     val tokens = LocalStudioTokens.current
+    // Whole row triggers onClick — label and icon are both valid tap targets.
     Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -237,8 +241,7 @@ private fun SpeedDialItem(label: String, icon: ImageVector, onClick: () -> Unit)
                 .size(44.dp)
                 .clip(CircleShape)
                 .background(if (tokens.isDark) tokens.surfaceHi else tokens.surface)
-                .border(1.dp, tokens.cardBorder, CircleShape)
-                .clickable(onClick = onClick),
+                .border(1.dp, tokens.cardBorder, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

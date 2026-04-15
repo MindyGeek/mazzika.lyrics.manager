@@ -549,7 +549,7 @@ private fun FollowerSessionDetails(
             .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
         // Live banner
-        LiveBanner(label = "Session en cours", timer = "")
+        LiveBanner(label = "Session en cours")
 
         Spacer(Modifier.height(16.dp))
 
@@ -753,21 +753,10 @@ private fun PilotState(
     onStopSession: () -> Unit,
 ) {
     val tokens = LocalStudioTokens.current
-    var elapsedSeconds by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(1000)
-            elapsedSeconds++
-        }
-    }
-    val timerText = remember(elapsedSeconds) {
-        val m = elapsedSeconds / 60
-        val s = elapsedSeconds % 60
-        "%02d:%02d".format(m, s)
-    }
+    var showStopConfirm by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
-        LiveBanner(timer = timerText)
+        LiveBanner()
         Spacer(Modifier.height(16.dp))
 
         val doc = selectedDocument
@@ -797,7 +786,7 @@ private fun PilotState(
                         )
                         DangerOutlineButton(
                             text = "Arrêter la diffusion",
-                            onClick = onStopSession,
+                            onClick = { showStopConfirm = true },
                             leadingContent = {
                                 Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
                             },
@@ -814,6 +803,58 @@ private fun PilotState(
             )
         }
     }
+
+    if (showStopConfirm) {
+        StopBroadcastConfirmDialog(
+            onDismiss = { showStopConfirm = false },
+            onConfirm = {
+                showStopConfirm = false
+                onStopSession()
+            },
+        )
+    }
+}
+
+@Composable
+private fun StopBroadcastConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val tokens = LocalStudioTokens.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = tokens.surface,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                "Arrêter la diffusion ?",
+                color = tokens.text,
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 18.sp,
+            )
+        },
+        text = {
+            Text(
+                text = "Les appareils connectés seront déconnectés. Vous pourrez redémarrer une session à tout moment.",
+                color = tokens.textMid,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Arrêter", color = tokens.danger, fontFamily = Inter, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = tokens.textMid, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+            }
+        },
+    )
 }
 
 // ═════════════════════════════════════════════════════════════════
