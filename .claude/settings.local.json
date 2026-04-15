@@ -52,7 +52,23 @@
       "Bash(curl -sL \"https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwA_JxhTg.ttf\" -o dm_sans_light.ttf)",
       "Bash(curl -sL \"https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwAopxhTg.ttf\" -o dm_sans_regular.ttf)",
       "Bash(curl -sL \"https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwAkJxhTg.ttf\" -o dm_sans_medium.ttf)",
-      "Bash(curl -sL \"https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwAfJthTg.ttf\" -o dm_sans_semibold.ttf)"
+      "Bash(curl -sL \"https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwAfJthTg.ttf\" -o dm_sans_semibold.ttf)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8888/)",
+      "Bash(pkill -f \"python3 -m http.server 8888\")",
+      "Bash(curl -s -o /dev/null -w \"Server: %{http_code}\\\\n\" http://localhost:8888/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8888/full-app.html)",
+      "Bash(curl -fsSL -o inter_regular.ttf \"https://github.com/rsms/inter/raw/master/docs/font-files/Inter-Regular.woff2\")",
+      "Bash(curl -fsSL -o inter_regular.ttf \"https://fonts.gstatic.com/s/inter/v13/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.woff2\")",
+      "Read(//private/tmp/**)",
+      "Bash(curl -fsSL -o Inter.zip \"https://github.com/rsms/inter/releases/download/v4.0/Inter-4.0.zip\")",
+      "Bash(unzip -l Inter.zip)",
+      "Bash(unzip -j -o Inter.zip \"extras/ttf/Inter-Regular.ttf\" \"extras/ttf/Inter-Medium.ttf\" \"extras/ttf/Inter-SemiBold.ttf\" \"extras/ttf/Inter-Bold.ttf\" \"extras/ttf/Inter-ExtraBold.ttf\" -d /tmp/inter_out/)",
+      "Bash(cp /tmp/inter_out/Inter-Regular.ttf /Users/mac/Desktop/Dev/Mazzika/Lyrics/app/src/main/res/font/inter_regular.ttf)",
+      "Bash(cp /tmp/inter_out/Inter-Medium.ttf /Users/mac/Desktop/Dev/Mazzika/Lyrics/app/src/main/res/font/inter_medium.ttf)",
+      "Bash(cp /tmp/inter_out/Inter-SemiBold.ttf /Users/mac/Desktop/Dev/Mazzika/Lyrics/app/src/main/res/font/inter_semibold.ttf)",
+      "Bash(cp /tmp/inter_out/Inter-Bold.ttf /Users/mac/Desktop/Dev/Mazzika/Lyrics/app/src/main/res/font/inter_bold.ttf)",
+      "Bash(./gradlew :app:compileDebugKotlin)",
+      "Bash(./gradlew :app:assembleDebug)"
     ]
   }
 }

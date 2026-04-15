@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -22,14 +23,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material.icons.filled.SyncDisabled
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,9 +42,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,12 +55,17 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.mazzika.lyrics.ui.theme.Gold
-import com.mazzika.lyrics.ui.theme.GoldLight
+import com.mazzika.lyrics.ui.theme.GoldDark
+import com.mazzika.lyrics.ui.theme.GoldLightDark
+import com.mazzika.lyrics.ui.theme.Inter
 import com.mazzika.lyrics.ui.theme.Success
-import com.mazzika.lyrics.ui.theme.Error
+import com.mazzika.lyrics.ui.theme.Danger
 
 enum class SyncMode { NONE, PILOT, FOLLOWER }
+
+// The reader is always visually dark (immersive PDF viewer).
+private val ReaderGold = GoldDark
+private val ReaderGoldLight = GoldLightDark
 
 @Composable
 fun ReaderScreen(
@@ -93,16 +99,12 @@ fun ReaderScreen(
     }
 
     // Follower: apply page from pilot when not detached
-    // Uses pilotCurrentPage which is always up-to-date (even when reader was closed)
     LaunchedEffect(pilotCurrentPage, pageCount, isDetached) {
         if (syncMode == SyncMode.FOLLOWER && pageCount > 0 && !isDetached) {
-            if (currentPage != pilotCurrentPage) {
-                viewModel.setCurrentPage(pilotCurrentPage)
-            }
+            if (currentPage != pilotCurrentPage) viewModel.setCurrentPage(pilotCurrentPage)
         }
     }
 
-    // Also react to syncPage changes for real-time updates while reader is open
     LaunchedEffect(syncPage) {
         if (syncMode == SyncMode.FOLLOWER && syncPage != null && !isDetached) {
             viewModel.setCurrentPage(syncPage)
@@ -114,25 +116,15 @@ fun ReaderScreen(
         val window = (context as? ComponentActivity)?.window ?: return@DisposableEffect onDispose {}
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.hide(WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-
-        onDispose {
-            controller.show(WindowInsetsCompat.Type.systemBars())
-        }
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        onDispose { controller.show(WindowInsetsCompat.Type.systemBars()) }
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(Color(0xFF0A0A0A), Color(0xFF000000)),
-                    radius = 800f,
-                ),
-            ),
+            .background(Color.Black),
     ) {
-        // Page content
         if (pageCount > 0) {
             PageFlipPager(
                 pageCount = pageCount,
@@ -144,238 +136,287 @@ fun ReaderScreen(
             )
         }
 
-        // Top toolbar
+        // ── Top toolbar
         AnimatedVisibility(
             visible = showToolbar,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.8f),
-                                Color.Transparent,
-                            ),
-                        ),
-                    )
-                    .statusBarsPadding()
-                    .padding(horizontal = 4.dp, vertical = 8.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-
-                    // Session info when sync active
-                    if (syncMode != SyncMode.NONE) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(end = 4.dp),
-                        ) {
-                            // Connection health dot
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isConnectionHealthy) Success else Error),
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "$connectedCount connect${if (connectedCount > 1) "és" else "é"}",
-                                color = Color.White.copy(alpha = 0.7f),
-                                fontSize = 12.sp,
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                    }
-
-                    // Navigation libre toggle (follower) or sync icon (pilot/none)
-                    if (syncMode == SyncMode.FOLLOWER && onToggleDetached != null) {
-                        var showTooltip by remember { mutableStateOf(false) }
-
-                        Box(contentAlignment = Alignment.TopEnd) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .pointerInput(Unit) {
-                                        detectTapGestures(
-                                            onLongPress = { showTooltip = true },
-                                            onTap = { onToggleDetached() },
-                                        )
-                                    },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = if (isDetached) Icons.Filled.SyncDisabled else Icons.Filled.Sync,
-                                    contentDescription = if (isDetached) "Re-synchroniser" else "Navigation libre",
-                                    tint = if (isDetached) Error else GoldLight,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                            }
-
-                            // Tooltip on long press
-                            if (showTooltip) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(top = 50.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFF2A2A2A))
-                                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                                ) {
-                                    Text(
-                                        text = if (isDetached) "Re-synchroniser" else "Navigation libre",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                    )
-                                }
-
-                                LaunchedEffect(Unit) {
-                                    kotlinx.coroutines.delay(2000)
-                                    showTooltip = false
-                                }
-                            }
-                        }
-                    } else if (syncMode == SyncMode.NONE) {
-                        IconButton(onClick = onNavigateToSync) {
-                            Icon(
-                                imageVector = Icons.Filled.SyncAlt,
-                                contentDescription = "Synchroniser",
-                                tint = GoldLight,
-                            )
-                        }
-                    }
-                }
-            }
+            TopReaderBar(
+                title = title,
+                syncMode = syncMode,
+                connectedCount = connectedCount,
+                isConnectionHealthy = isConnectionHealthy,
+                isDetached = isDetached,
+                onBack = onNavigateBack,
+                onToggleDetached = onToggleDetached,
+                onNavigateToSync = onNavigateToSync,
+            )
         }
 
-        // Bottom page indicator
+        // ── Bottom: page dots + Fermer pill (+ Save for follower temp file)
         AnimatedVisibility(
             visible = showToolbar && pageCount > 0,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.8f),
-                            ),
-                        ),
-                    )
-                    .padding(bottom = 80.dp, top = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    // Dot indicators (show max 10 dots)
-                    if (pageCount <= 10) {
-                        Row(
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            for (i in 0 until pageCount) {
-                                val isActive = i == currentPage
-                                Box(
-                                    modifier = Modifier
-                                        .padding(horizontal = 3.dp)
-                                        .size(
-                                            width = if (isActive) 16.dp else 6.dp,
-                                            height = 6.dp,
-                                        )
-                                        .clip(CircleShape)
-                                        .background(if (isActive) Gold else Color.White.copy(alpha = 0.5f)),
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
+            BottomReaderBar(
+                currentPage = currentPage,
+                pageCount = pageCount,
+                onClose = onNavigateBack,
+                showSave = syncMode == SyncMode.FOLLOWER && isTempFile,
+                onSave = onSaveToCatalogue,
+            )
+        }
+    }
+}
 
+@Composable
+private fun TopReaderBar(
+    title: String,
+    syncMode: SyncMode,
+    connectedCount: Int,
+    isConnectionHealthy: Boolean,
+    isDetached: Boolean,
+    onBack: () -> Unit,
+    onToggleDetached: (() -> Unit)?,
+    onNavigateToSync: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color.Black.copy(alpha = 0.9f), Color.Transparent),
+                ),
+            )
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Back button
+        GlassIconButton(
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            description = "Retour",
+            onClick = onBack,
+        )
+        Spacer(Modifier.width(12.dp))
+
+        // Title + status
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (syncMode != SyncMode.NONE) {
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (isConnectionHealthy) Success else Danger),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    val roleLabel = if (syncMode == SyncMode.PILOT) "Pilote" else "Follower"
                     Text(
-                        text = "${currentPage + 1} / $pageCount",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
+                        text = "$roleLabel • $connectedCount connecté${if (connectedCount > 1) "s" else ""}",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 10.sp,
+                        color = Color.White.copy(alpha = 0.7f),
                     )
                 }
             }
         }
 
-        // "Fermer" pill button at bottom center
-        AnimatedVisibility(
-            visible = showToolbar,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 150.dp),
-        ) {
-            Button(
-                onClick = onNavigateBack,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF2A2A2A),
-                    contentColor = Color.White,
-                ),
-                shape = RoundedCornerShape(24.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    Color.White.copy(alpha = 0.2f),
-                ),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Fermer",
-                    fontSize = 14.sp,
+        // Right action
+        when {
+            syncMode == SyncMode.FOLLOWER && onToggleDetached != null -> {
+                var showTooltip by remember { mutableStateOf(false) }
+                Box(contentAlignment = Alignment.TopEnd) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.1f))
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onLongPress = { showTooltip = true },
+                                    onTap = { onToggleDetached() },
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = if (isDetached) Icons.Filled.SyncDisabled else Icons.Filled.Sync,
+                            contentDescription = if (isDetached) "Re-synchroniser" else "Navigation libre",
+                            tint = if (isDetached) Danger else ReaderGoldLight,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    if (showTooltip) {
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 44.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF2A2A2A))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        ) {
+                            Text(
+                                text = if (isDetached) "Re-synchroniser" else "Navigation libre",
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White,
+                                fontSize = 11.sp,
+                            )
+                        }
+                        LaunchedEffect(showTooltip) {
+                            kotlinx.coroutines.delay(2000)
+                            showTooltip = false
+                        }
+                    }
+                }
+            }
+            syncMode == SyncMode.NONE -> {
+                GlassIconButton(
+                    icon = Icons.Filled.SyncAlt,
+                    description = "Synchroniser",
+                    onClick = onNavigateToSync,
                 )
             }
+            else -> Spacer(Modifier.size(40.dp))
+        }
+    }
+}
+
+@Composable
+private fun BottomReaderBar(
+    currentPage: Int,
+    pageCount: Int,
+    onClose: () -> Unit,
+    showSave: Boolean = false,
+    onSave: (() -> Unit)? = null,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f)),
+                ),
+            )
+            .padding(top = 20.dp, bottom = 40.dp, start = 16.dp, end = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        // Page dots + text
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (pageCount in 1..10) {
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    for (i in 0 until pageCount) {
+                        val isActive = i == currentPage
+                        Box(
+                            modifier = Modifier
+                                .size(
+                                    width = if (isActive) 20.dp else 6.dp,
+                                    height = 6.dp,
+                                )
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(
+                                    if (isActive)
+                                        Brush.linearGradient(listOf(ReaderGoldLight, ReaderGold))
+                                    else
+                                        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.3f), Color.White.copy(alpha = 0.3f))),
+                                ),
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "Page ${currentPage + 1} / $pageCount",
+                fontFamily = Inter,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
+                color = Color.White.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center,
+            )
         }
 
-        // Navigation libre pill removed — now in toolbar icon
-
-        // Follower: Save to catalogue button (shown only when temp file)
-        if (syncMode == SyncMode.FOLLOWER && isTempFile && onSaveToCatalogue != null) {
-            Button(
-                onClick = onSaveToCatalogue,
+        // Close pill
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (showSave && onSave != null) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Brush.linearGradient(listOf(ReaderGoldLight, ReaderGold)))
+                        .clickable(onClick = onSave)
+                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Save, contentDescription = null, tint = Color.Black, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "Sauvegarder",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color.Black,
+                    )
+                }
+            }
+            Row(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 100.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Gold,
-                    contentColor = Color.Black,
-                ),
-                shape = RoundedCornerShape(20.dp),
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.White.copy(alpha = 0.1f))
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+                    .clickable(onClick = onClose)
+                    .padding(horizontal = 22.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Icon(Icons.Filled.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "\uD83D\uDCBE Sauvegarder",
+                    text = "Fermer",
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp,
+                    color = Color.White,
                 )
             }
         }
     }
 }
 
+@Composable
+private fun GlassIconButton(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.1f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = Color.White,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
