@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -79,7 +81,7 @@ import com.mazzika.lyrics.ui.theme.LocalStudioTokens
 
 @Composable
 fun SyncScreen(
-    onNavigateToReaderSync: () -> Unit,
+    onOpenSharedFile: () -> Unit,
     onNavigateToReader: (Long) -> Unit,
     viewModel: SyncViewModel = viewModel(),
 ) {
@@ -129,15 +131,8 @@ fun SyncScreen(
         }
     }
 
-    // Navigate to reader when a file is ready (follower)
-    LaunchedEffect(syncFilePath) {
-        if (syncFilePath != null && !viewModel.hasNavigatedToReader) {
-            viewModel.markNavigatedToReader()
-            onNavigateToReaderSync()
-        }
-    }
-
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showLeaveConfirm by remember { mutableStateOf(false) }
 
     // Session ended by pilot
     if (sessionEndedByPilot) {
@@ -165,19 +160,46 @@ fun SyncScreen(
                 )
             }
             SyncRole.FOLLOWER -> {
-                // Follower discovery + connecting flow.
-                // While the follower has no file yet, we stay on this screen.
-                // Once a session is picked and file received, LaunchedEffect(syncFilePath)
-                // automatically navigates to the reader.
-                JoiningState(
-                    discoveryTimedOut = discoveryTimedOut,
-                    discoveredEndpoints = discoveredEndpoints,
-                    isConnecting = connectedEndpoints.isNotEmpty(),
-                    connectingToName = connectedEndpoints.firstOrNull()?.name,
-                    onBack = { viewModel.stopSession() },
-                    onRetry = { viewModel.restartDiscovery() },
-                    onJoin = { endpoint -> viewModel.connectToEndpoint(endpoint.id) },
-                )
+                when {
+                    // File received → show the session details landing.
+                    syncFilePath != null -> {
+                        FollowerSessionDetails(
+                            fileTitle = selectedDocument?.title
+                                ?: java.io.File(syncFilePath ?: "").nameWithoutExtension,
+                            pageCount = selectedDocument?.pageCount,
+                            pilotName = connectedEndpoints.firstOrNull()?.name ?: "Pilote",
+                            connectedCount = connectedEndpoints.size + 1, // +1 for self
+                            isTempFile = isTempFile,
+                            onOpenFile = onOpenSharedFile,
+                            onLeave = { showLeaveConfirm = true },
+                            onSave = { viewModel.saveToCatalogue() },
+                        )
+                    }
+                    // Linked to a pilot but file not yet received → overlay on pulse search
+                    connectedEndpoints.isNotEmpty() -> {
+                        JoiningState(
+                            discoveryTimedOut = discoveryTimedOut,
+                            discoveredEndpoints = discoveredEndpoints,
+                            isConnecting = true,
+                            connectingToName = connectedEndpoints.firstOrNull()?.name,
+                            onBack = { viewModel.stopSession() },
+                            onRetry = { viewModel.restartDiscovery() },
+                            onJoin = { endpoint -> viewModel.connectToEndpoint(endpoint.id) },
+                        )
+                    }
+                    // Still discovering
+                    else -> {
+                        JoiningState(
+                            discoveryTimedOut = discoveryTimedOut,
+                            discoveredEndpoints = discoveredEndpoints,
+                            isConnecting = false,
+                            connectingToName = null,
+                            onBack = { viewModel.stopSession() },
+                            onRetry = { viewModel.restartDiscovery() },
+                            onJoin = { endpoint -> viewModel.connectToEndpoint(endpoint.id) },
+                        )
+                    }
+                }
             }
             SyncRole.NONE -> {
                 NoneState(
@@ -206,6 +228,16 @@ fun SyncScreen(
             onStart = { doc ->
                 viewModel.startAsPilot(doc)
                 showCreateDialog = false
+            },
+        )
+    }
+
+    if (showLeaveConfirm) {
+        LeaveSessionConfirmDialog(
+            onDismiss = { showLeaveConfirm = false },
+            onConfirm = {
+                showLeaveConfirm = false
+                viewModel.stopSession()
             },
         )
     }
@@ -289,31 +321,50 @@ private fun JoiningState(
     onJoin: (NearbySessionManager.EndpointInfo) -> Unit,
 ) {
     val tokens = LocalStudioTokens.current
+    val hasFound = discoveredEndpoints.isNotEmpty()
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Pulse search hero
+
+            // Hero zone: animated pulse while searching, static "no-signal" glyph when
+            // discovery timed out with no results.
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 24.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                PulseSearch()
+                val emptyAfterTimeout = discoveryTimedOut && !hasFound
+
+                if (emptyAfterTimeout) {
+                    NoSignalGlyph()
+                } else {
+                    PulseSearch()
+                }
+
                 Spacer(Modifier.height(16.dp))
+
+                val (title, subtitle) = when {
+                    hasFound && !discoveryTimedOut ->
+                        "À la recherche..." to "${discoveredEndpoints.size} session${if (discoveredEndpoints.size > 1) "s" else ""} trouvée${if (discoveredEndpoints.size > 1) "s" else ""}"
+                    hasFound && discoveryTimedOut ->
+                        "${discoveredEndpoints.size} session${if (discoveredEndpoints.size > 1) "s" else ""} trouvée${if (discoveredEndpoints.size > 1) "s" else ""}" to "Appuyez sur « Rejoindre » pour continuer"
+                    discoveryTimedOut ->
+                        "Aucune session trouvée" to "Vérifiez que le pilote a bien démarré la session."
+                    else ->
+                        "À la recherche..." to "Assurez-vous que le Bluetooth et le Wi-Fi sont activés"
+                }
+
                 Text(
-                    text = if (discoveryTimedOut) "Aucune session trouvée" else "À la recherche...",
+                    text = title,
                     fontFamily = Inter,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 20.sp,
                     letterSpacing = (-0.4).sp,
                     color = tokens.text,
+                    textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = if (discoveryTimedOut)
-                        "Vérifiez que le pilote a bien démarré la session."
-                    else
-                        "Assurez-vous que le Bluetooth et le Wi-Fi sont activés",
+                    text = subtitle,
                     fontFamily = Inter,
                     fontWeight = FontWeight.Medium,
                     fontSize = 13.sp,
@@ -346,14 +397,6 @@ private fun JoiningState(
                 }
             }
 
-            if (discoveredEndpoints.isNotEmpty()) {
-                GroupLabel(
-                    text = "${discoveredEndpoints.size} session${if (discoveredEndpoints.size > 1) "s" else ""} trouvée${if (discoveredEndpoints.size > 1) "s" else ""}",
-                    withDot = false,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
-                )
-            }
-
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
@@ -374,7 +417,7 @@ private fun JoiningState(
 
             Box(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
                 DangerOutlineButton(
-                    text = "Annuler la recherche",
+                    text = "Quitter la recherche",
                     onClick = onBack,
                     leadingContent = {
                         Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -383,12 +426,57 @@ private fun JoiningState(
             }
         }
 
-        // Overlay "Connexion en cours..." shown while we're linked to a session
-        // but haven't received the file yet.
+        // "Connexion en cours..." fully-opaque overlay while joining a specific session
         if (isConnecting) {
             ConnectingOverlay(
                 sessionName = connectingToName,
                 onCancel = onBack,
+            )
+        }
+    }
+}
+
+/** Static glyph shown when discovery times out and no sessions were found. */
+@Composable
+private fun NoSignalGlyph() {
+    val tokens = LocalStudioTokens.current
+    Box(
+        modifier = Modifier.size(120.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Outer muted ring
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .border(2.dp, tokens.textDim.copy(alpha = 0.25f), CircleShape),
+        )
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .border(2.dp, tokens.textDim.copy(alpha = 0.35f), CircleShape),
+        )
+        // Inner muted disk with a ban symbol in the gold color
+        Box(
+            modifier = Modifier
+                .size(50.dp)
+                .clip(CircleShape)
+                .background(tokens.surfaceHi),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "🛰",
+                fontSize = 24.sp,
+            )
+        }
+        // Diagonal strike-through spanning the whole glyph
+        androidx.compose.foundation.Canvas(modifier = Modifier.size(120.dp)) {
+            val stroke = 3.dp.toPx()
+            drawLine(
+                color = tokens.danger.copy(alpha = 0.85f),
+                start = androidx.compose.ui.geometry.Offset(size.width * 0.22f, size.height * 0.22f),
+                end = androidx.compose.ui.geometry.Offset(size.width * 0.78f, size.height * 0.78f),
+                strokeWidth = stroke,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round,
             )
         }
     }
@@ -400,10 +488,11 @@ private fun ConnectingOverlay(
     onCancel: () -> Unit,
 ) {
     val tokens = LocalStudioTokens.current
+    // Fully opaque so the discovery list never peeks through underneath.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(tokens.bg.copy(alpha = 0.94f))
+            .background(tokens.bg)
             .clickable(enabled = false, onClick = {}),
         contentAlignment = Alignment.Center,
     ) {
@@ -435,6 +524,220 @@ private fun ConnectingOverlay(
             )
         }
     }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// FOLLOWER SESSION DETAILS — landing after joining a session
+// ═════════════════════════════════════════════════════════════════
+
+@Composable
+private fun FollowerSessionDetails(
+    fileTitle: String,
+    pageCount: Int?,
+    pilotName: String,
+    connectedCount: Int,
+    isTempFile: Boolean,
+    onOpenFile: () -> Unit,
+    onLeave: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val tokens = LocalStudioTokens.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+    ) {
+        // Live banner
+        LiveBanner(label = "Session en cours", timer = "")
+
+        Spacer(Modifier.height(16.dp))
+
+        // File card
+        val palette = paletteFor(fileTitle)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(tokens.cardElevation, RoundedCornerShape(16.dp), clip = false)
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (tokens.isDark) tokens.surfaceHi else tokens.surface)
+                .then(
+                    if (!tokens.isDark)
+                        Modifier.border(1.dp, tokens.cardBorder, RoundedCornerShape(16.dp))
+                    else Modifier,
+                )
+                .padding(20.dp),
+        ) {
+            // File header
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Brush.linearGradient(listOf(palette.a, palette.b))),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = fileTitle.firstOrNull()?.uppercase() ?: "?",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 22.sp,
+                        color = Color.White,
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = fileTitle,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = tokens.text,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = if (pageCount != null) "$pageCount page${if (pageCount > 1) "s" else ""}" else "Partition partagée",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                        color = tokens.textMid,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            // Info rows
+            InfoRow(label = "Pilote", value = pilotName)
+            Spacer(Modifier.height(10.dp))
+            InfoRow(
+                label = "Participants",
+                value = "$connectedCount connecté${if (connectedCount > 1) "s" else ""}",
+            )
+
+            if (isTempFile) {
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(tokens.gold.copy(alpha = 0.1f))
+                        .clickable(onClick = onSave)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Save, contentDescription = null, tint = tokens.gold, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Sauvegarder dans le catalogue",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            color = tokens.text,
+                        )
+                        Text(
+                            text = "Le fichier est temporaire",
+                            fontFamily = Inter,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            color = tokens.textMid,
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        // Actions
+        PrimaryGoldButton(
+            text = "Ouvrir la partition",
+            onClick = onOpenFile,
+            leadingContent = {
+                Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+            },
+        )
+        Spacer(Modifier.height(10.dp))
+        DangerOutlineButton(
+            text = "Quitter la session",
+            onClick = onLeave,
+            leadingContent = {
+                Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+            },
+        )
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    val tokens = LocalStudioTokens.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label.uppercase(),
+            fontFamily = Inter,
+            fontWeight = FontWeight.Bold,
+            fontSize = 10.sp,
+            letterSpacing = 1.5.sp,
+            color = tokens.textDim,
+            modifier = Modifier.width(110.dp),
+        )
+        Text(
+            text = value,
+            fontFamily = Inter,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            color = tokens.text,
+        )
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// LEAVE SESSION CONFIRMATION DIALOG
+// ═════════════════════════════════════════════════════════════════
+
+@Composable
+private fun LeaveSessionConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val tokens = LocalStudioTokens.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = tokens.surface,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                "Quitter la session ?",
+                color = tokens.text,
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 18.sp,
+            )
+        },
+        text = {
+            Text(
+                text = "Vous serez déconnecté de la session en cours. Vous pourrez rejoindre à nouveau plus tard.",
+                color = tokens.textMid,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Quitter", color = tokens.danger, fontFamily = Inter, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler", color = tokens.textMid, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+            }
+        },
+    )
 }
 
 // ═════════════════════════════════════════════════════════════════

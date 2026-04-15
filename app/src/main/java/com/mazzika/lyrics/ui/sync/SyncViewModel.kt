@@ -255,7 +255,17 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 is SyncMessage.SessionEnd -> {
                     Log.d(TAG, "SessionEnd received: reason=${message.reason}")
+                    // Keep syncFilePath/isTempFile/sessionEndedByPilot so the user can
+                    // still save the temp file; tear down nearby + stop the foreground
+                    // service so the "Session Mazzika active" notification disappears.
                     _sessionEndedByPilot.value = true
+                    _role.value = SyncRole.NONE
+                    _sessionManager.value?.run {
+                        stopAdvertising()
+                        stopDiscovery()
+                        disconnectAll()
+                    }
+                    stopService()
                 }
             }
         }
@@ -368,7 +378,8 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
             delay(DISCOVERY_TIMEOUT_SECONDS * 1000L)
             _isSearching.value = false
             _discoveryTimedOut.value = true
-            // Don't stop discovery — keep listening for onEndpointLost
+            // Stop listening once the timeout elapses — resumes on explicit retry.
+            _sessionManager.value?.stopDiscovery()
         }
     }
 

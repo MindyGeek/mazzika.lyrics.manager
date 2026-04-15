@@ -47,7 +47,7 @@ import com.mazzika.lyrics.ui.theme.LocalStudioTokens
 @Composable
 fun LiveBanner(
     label: String = "Diffusion en cours",
-    timer: String,
+    timer: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val tokens = LocalStudioTokens.current
@@ -99,13 +99,15 @@ fun LiveBanner(
                 color = tokens.success,
             )
         }
-        Text(
-            text = timer,
-            fontFamily = Inter,
-            fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
-            color = tokens.textMid,
-        )
+        if (!timer.isNullOrBlank()) {
+            Text(
+                text = timer,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = tokens.textMid,
+            )
+        }
     }
 }
 

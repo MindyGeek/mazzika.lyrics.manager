@@ -78,7 +78,7 @@ fun NavGraph(
 
         composable(Screen.Sync.route) {
             SyncScreen(
-                onNavigateToReaderSync = {
+                onOpenSharedFile = {
                     navController.navigate(Screen.ReaderSync.route) {
                         launchSingleTop = true
                     }
@@ -157,6 +157,14 @@ fun NavGraph(
             val isDetached by syncViewModel.isDetached.collectAsState()
             val isTempFile by syncViewModel.isTempFile.collectAsState()
             val syncConnectedEndpoints by syncViewModel.connectedEndpoints.collectAsState()
+            val sessionEnded by syncViewModel.sessionEndedByPilot.collectAsState()
+
+            // Auto-close the reader when the pilot ends the session; the confirmation
+            // modal is hosted by SyncScreen, which the back-stack will surface next.
+            LaunchedEffect(sessionEnded) {
+                if (sessionEnded) navController.popBackStack()
+            }
+
             ReaderScreen(
                 viewModel = readerViewModel,
                 onNavigateBack = { navController.popBackStack() },
