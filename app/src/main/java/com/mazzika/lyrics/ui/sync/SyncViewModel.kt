@@ -145,11 +145,13 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         )
 
     private var isBound = false
+    private var serviceBinder: com.mazzika.lyrics.data.nearby.NearbyService.LocalBinder? = null
     private val _serviceReady = MutableStateFlow(false)
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             val binder = service as NearbyService.LocalBinder
+            serviceBinder = binder
             _sessionManager.value = binder.getSessionManager()
             isBound = true
             _serviceReady.value = true
@@ -161,6 +163,7 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
+            serviceBinder = null
             _sessionManager.value = null
             isBound = false
             _serviceReady.value = false
@@ -181,8 +184,12 @@ class SyncViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun stopService() {
         if (!isBound) return
+        // Kill the foreground notification *before* unbinding so it's never stranded
+        // on screen if the platform delays onDestroy.
+        runCatching { serviceBinder?.tearDownForeground() }
         app.unbindService(serviceConnection)
         app.stopService(Intent(app, NearbyService::class.java))
+        serviceBinder = null
         _sessionManager.value = null
         isBound = false
         _serviceReady.value = false
