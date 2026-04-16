@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -34,15 +33,12 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,7 +54,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
@@ -855,285 +850,6 @@ private fun StopBroadcastConfirmDialog(
             }
         },
     )
-}
-
-// ═════════════════════════════════════════════════════════════════
-// CREATE SESSION DIALOG — 3 steps
-// ═════════════════════════════════════════════════════════════════
-
-@Composable
-private fun CreateSessionDialog(
-    sessionName: String,
-    onSessionNameChange: (String) -> Unit,
-    allDocuments: List<PdfDocumentEntity>,
-    onDismiss: () -> Unit,
-    onStart: (PdfDocumentEntity) -> Unit,
-) {
-    val tokens = LocalStudioTokens.current
-    var currentStep by remember { mutableIntStateOf(0) }
-    var selectedDoc by remember { mutableStateOf<PdfDocumentEntity?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.fillMaxWidth(0.92f).padding(vertical = 24.dp),
-        containerColor = tokens.surface,
-        shape = RoundedCornerShape(20.dp),
-        title = {
-            Column {
-                Text(
-                    text = "Créer une session",
-                    color = tokens.text,
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 18.sp,
-                )
-                Spacer(Modifier.height(10.dp))
-                StepIndicator(currentStep = currentStep, totalSteps = 3)
-            }
-        },
-        text = {
-            when (currentStep) {
-                0 -> Column {
-                    Text(
-                        "Nom de la session",
-                        color = tokens.textMid,
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = sessionName,
-                        onValueChange = onSessionNameChange,
-                        label = { Text("Ex. Répétition Hadhra", fontFamily = Inter) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = tokens.gold,
-                            unfocusedBorderColor = tokens.border,
-                            focusedLabelColor = tokens.gold,
-                            unfocusedLabelColor = tokens.textMid,
-                            focusedTextColor = tokens.text,
-                            unfocusedTextColor = tokens.text,
-                            cursorColor = tokens.gold,
-                        ),
-                    )
-                }
-                1 -> DocumentPickerStep(
-                    documents = allDocuments,
-                    selectedDoc = selectedDoc,
-                    onSelect = { selectedDoc = it },
-                )
-                2 -> ConfirmStep(sessionName = sessionName, selectedDoc = selectedDoc)
-            }
-        },
-        // All action buttons live in the single `confirmButton` slot so they never
-        // compete for space with Material's split confirm/dismiss layout.
-        // Primary gold action is full-width on top; secondary text buttons sit below.
-        confirmButton = {
-            val canNext = when (currentStep) {
-                0 -> sessionName.isNotBlank()
-                1 -> selectedDoc != null
-                2 -> selectedDoc != null
-                else -> false
-            }
-            Column(modifier = Modifier.fillMaxWidth()) {
-                PrimaryGoldButton(
-                    text = if (currentStep == 2) "Démarrer la session" else "Suivant",
-                    onClick = {
-                        if (currentStep == 2) selectedDoc?.let { onStart(it) }
-                        else currentStep++
-                    },
-                    enabled = canNext,
-                    leadingContent = if (currentStep == 2) {
-                        {
-                            Icon(
-                                Icons.Filled.CellTower,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    } else null,
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (currentStep > 0) {
-                        TextButton(onClick = { currentStep-- }) {
-                            Text(
-                                "Précédent",
-                                color = tokens.textMid,
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
-                    TextButton(onClick = onDismiss) {
-                        Text(
-                            "Annuler",
-                            color = tokens.textMid,
-                            fontFamily = Inter,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
-            }
-        },
-        dismissButton = null,
-    )
-}
-
-@Composable
-private fun StepIndicator(currentStep: Int, totalSteps: Int) {
-    val tokens = LocalStudioTokens.current
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        repeat(totalSteps) { i ->
-            Box(
-                modifier = Modifier
-                    .size(width = if (i == currentStep) 22.dp else 6.dp, height = 6.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(
-                        if (i <= currentStep) Brush.linearGradient(listOf(tokens.goldLight, tokens.gold))
-                        else Brush.linearGradient(listOf(tokens.pillBg, tokens.pillBg)),
-                    ),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DocumentPickerStep(
-    documents: List<PdfDocumentEntity>,
-    selectedDoc: PdfDocumentEntity?,
-    onSelect: (PdfDocumentEntity) -> Unit,
-) {
-    val tokens = LocalStudioTokens.current
-    Column {
-        Text(
-            "Choisissez une partition",
-            color = tokens.textMid,
-            fontFamily = Inter,
-            fontWeight = FontWeight.Medium,
-            fontSize = 13.sp,
-        )
-        Spacer(Modifier.height(10.dp))
-        if (documents.isEmpty()) {
-            Text(
-                "Aucun document disponible.\nImportez un PDF depuis le Catalogue.",
-                color = tokens.textDim,
-                fontFamily = Inter,
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.height(260.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(documents) { doc ->
-                    val isSelected = selectedDoc?.id == doc.id
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) tokens.gold.copy(alpha = 0.14f) else tokens.surfaceHi)
-                            .border(
-                                width = if (isSelected) 1.dp else 0.dp,
-                                color = if (isSelected) tokens.gold else Color.Transparent,
-                                shape = RoundedCornerShape(12.dp),
-                            )
-                            .clickable { onSelect(doc) }
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val palette = paletteFor(doc.id)
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Brush.linearGradient(listOf(palette.a, palette.b))),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = doc.title.firstOrNull()?.uppercase() ?: "?",
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 16.sp,
-                                color = Color.White,
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = doc.title,
-                                color = tokens.text,
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = "${doc.pageCount} page${if (doc.pageCount > 1) "s" else ""}",
-                                color = tokens.textMid,
-                                fontFamily = Inter,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 11.sp,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ConfirmStep(sessionName: String, selectedDoc: PdfDocumentEntity?) {
-    val tokens = LocalStudioTokens.current
-    Column {
-        ConfirmRow("Session", sessionName)
-        Spacer(Modifier.height(10.dp))
-        ConfirmRow("Partition", selectedDoc?.title ?: "—")
-        Spacer(Modifier.height(10.dp))
-        ConfirmRow("Pages", selectedDoc?.pageCount?.toString() ?: "—")
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Votre appareil deviendra pilote de la session. Les autres musiciens pourront se connecter à proximité.",
-            color = tokens.textMid,
-            fontFamily = Inter,
-            fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
-            lineHeight = 17.sp,
-        )
-    }
-}
-
-@Composable
-private fun ConfirmRow(label: String, value: String) {
-    val tokens = LocalStudioTokens.current
-    Row(verticalAlignment = Alignment.Top) {
-        Text(
-            text = label.uppercase(),
-            color = tokens.textDim,
-            fontFamily = Inter,
-            fontWeight = FontWeight.Bold,
-            fontSize = 10.sp,
-            letterSpacing = 1.5.sp,
-            modifier = Modifier.width(90.dp),
-        )
-        Text(
-            text = value,
-            color = tokens.text,
-            fontFamily = Inter,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
-        )
-    }
 }
 
 // ═════════════════════════════════════════════════════════════════

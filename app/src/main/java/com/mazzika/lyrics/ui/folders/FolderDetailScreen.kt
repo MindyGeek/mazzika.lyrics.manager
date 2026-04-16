@@ -33,6 +33,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.UploadFile
@@ -278,18 +282,22 @@ private fun InteractiveSubfolderChip(
             count = "",
             onClick = onClick,
         )
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text("Renommer", fontFamily = Inter) },
-                onClick = { showMenu = false; showRenameDialog = true },
-            )
-            DropdownMenuItem(
-                text = { Text("Supprimer", color = tokens.danger, fontFamily = Inter) },
-                onClick = { showMenu = false; onDelete() },
-            )
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Renommer", fontFamily = Inter) },
+                    leadingIcon = { Icon(Icons.Filled.Edit, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; showRenameDialog = true },
+                )
+                DropdownMenuItem(
+                    text = { Text("Supprimer", color = tokens.danger, fontFamily = Inter) },
+                    leadingIcon = { Icon(Icons.Filled.Delete, null, Modifier.size(18.dp), tint = tokens.danger) },
+                    onClick = { showMenu = false; onDelete() },
+                )
+            }
         }
     }
 
@@ -312,7 +320,7 @@ private fun InteractiveDocRow(
 ) {
     val tokens = LocalStudioTokens.current
     var showMenu by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier = Modifier.fillMaxWidth()) {
         DocRow(
             title = document.title,
             letter = document.title.firstOrNull()?.uppercase() ?: "?",
@@ -321,19 +329,22 @@ private fun InteractiveDocRow(
             onClick = onClick,
             onMoreClick = { showMenu = true },
         )
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-            modifier = Modifier.align(Alignment.TopEnd),
-        ) {
-            DropdownMenuItem(
-                text = { Text("Ouvrir", fontFamily = Inter) },
-                onClick = { showMenu = false; onClick() },
-            )
-            DropdownMenuItem(
-                text = { Text("Retirer du dossier", color = tokens.danger, fontFamily = Inter) },
-                onClick = { showMenu = false; onRemove() },
-            )
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Ouvrir", fontFamily = Inter) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onClick() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Retirer du dossier", color = tokens.danger, fontFamily = Inter) },
+                    leadingIcon = { Icon(Icons.Filled.RemoveCircleOutline, null, Modifier.size(18.dp), tint = tokens.danger) },
+                    onClick = { showMenu = false; onRemove() },
+                )
+            }
         }
     }
 }

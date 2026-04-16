@@ -22,6 +22,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -40,11 +44,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
+import com.mazzika.lyrics.ui.sync.CreateSessionDialog
+import com.mazzika.lyrics.ui.sync.SyncViewModel
 import com.mazzika.lyrics.ui.components.DocRow
 import com.mazzika.lyrics.ui.components.FilterChip
 import com.mazzika.lyrics.ui.components.SearchInputBar
@@ -62,6 +69,7 @@ private enum class CatalogChip(val label: String) {
 @Composable
 fun CatalogScreen(
     onNavigateToReader: (Long) -> Unit,
+    onNavigateToSync: () -> Unit = {},
     viewModel: CatalogViewModel = viewModel(),
 ) {
     val tokens = LocalStudioTokens.current
@@ -69,6 +77,14 @@ fun CatalogScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
     val allFolders by viewModel.allFolders.collectAsState()
+
+    // Create-session dialog — Activity-scoped SyncViewModel for session management.
+    val activity = LocalContext.current as ComponentActivity
+    val syncViewModel: SyncViewModel = viewModel(activity)
+    val allDocsForSession by syncViewModel.allDocuments.collectAsState()
+    val sessionName by syncViewModel.sessionName.collectAsState()
+    var showCreateSession by remember { mutableStateOf(false) }
+    var preSelectedDoc by remember { mutableStateOf<PdfDocumentEntity?>(null) }
 
     var documentToAddToFolder by remember { mutableStateOf<Long?>(null) }
     var documentToDelete by remember { mutableStateOf<PdfDocumentEntity?>(null) }
@@ -108,6 +124,11 @@ fun CatalogScreen(
                                 onClick = { onNavigateToReader(doc.id) },
                                 onAddToFolder = { documentToAddToFolder = doc.id },
                                 onDelete = { documentToDelete = doc },
+                                onShareSession = {
+                                    syncViewModel.initSessionName()
+                                    preSelectedDoc = doc
+                                    showCreateSession = true
+                                },
                             )
                         }
                     }
@@ -157,6 +178,25 @@ fun CatalogScreen(
             onConfirm = {
                 viewModel.deleteDocument(docToDelete.id)
                 documentToDelete = null
+            },
+        )
+    }
+
+    if (showCreateSession) {
+        CreateSessionDialog(
+            sessionName = sessionName,
+            onSessionNameChange = { syncViewModel.setSessionName(it) },
+            allDocuments = allDocsForSession,
+            preSelectedDocument = preSelectedDoc,
+            onDismiss = {
+                showCreateSession = false
+                preSelectedDoc = null
+            },
+            onStart = { doc ->
+                syncViewModel.startAsPilot(doc)
+                showCreateSession = false
+                preSelectedDoc = null
+                onNavigateToSync()
             },
         )
     }
@@ -219,6 +259,7 @@ private fun DocRowWithMenu(
     onClick: () -> Unit,
     onAddToFolder: () -> Unit,
     onDelete: () -> Unit,
+    onShareSession: () -> Unit,
 ) {
     val tokens = LocalStudioTokens.current
     var showMenu by remember { mutableStateOf(false) }
@@ -232,29 +273,32 @@ private fun DocRowWithMenu(
             onClick = onClick,
             onMoreClick = { showMenu = true },
         )
-        // Dropdown anchored to the right edge of the row; the `offset` shifts it
-        // leftward so the menu sits to the LEFT of the ⋯ button rather than
-        // overlapping it.
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-            offset = DpOffset(x = (-160).dp, y = 0.dp),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .background(tokens.surface),
-        ) {
-            DropdownMenuItem(
-                text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
-                onClick = { showMenu = false; onClick() },
-            )
-            DropdownMenuItem(
-                text = { Text("Ranger dans un dossier", fontFamily = Inter, color = tokens.text) },
-                onClick = { showMenu = false; onAddToFolder() },
-            )
-            DropdownMenuItem(
-                text = { Text("Supprimer", fontFamily = Inter, color = tokens.danger) },
-                onClick = { showMenu = false; onDelete() },
-            )
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onClick() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Partager en session", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.Filled.CellTower, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onShareSession() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Ranger dans un dossier", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.Filled.Folder, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onAddToFolder() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Supprimer", fontFamily = Inter, color = tokens.danger) },
+                    leadingIcon = { Icon(Icons.Filled.Delete, null, Modifier.size(18.dp), tint = tokens.danger) },
+                    onClick = { showMenu = false; onDelete() },
+                )
+            }
         }
     }
 }
