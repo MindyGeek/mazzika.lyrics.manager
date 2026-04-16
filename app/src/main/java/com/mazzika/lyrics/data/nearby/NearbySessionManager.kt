@@ -55,6 +55,10 @@ class NearbySessionManager(private val context: Context) {
     private val _incomingFilePath = MutableStateFlow<Pair<String, String>?>(null)
     val incomingFilePath: StateFlow<Pair<String, String>?> = _incomingFilePath.asStateFlow()
 
+    /** Transfer progress 0.0..1.0, null when no transfer is active. */
+    private val _transferProgress = MutableStateFlow<Float?>(null)
+    val transferProgress: StateFlow<Float?> = _transferProgress.asStateFlow()
+
     /** Tracks in-flight FILE payloads: payloadId -> (endpointId, payload). */
     private val pendingFilePayloads = mutableMapOf<Long, Pair<String, Payload>>()
 
@@ -150,7 +154,14 @@ class NearbySessionManager(private val context: Context) {
             Log.d(TAG, "Payload transfer update: id=$payloadId, status=${update.status}, " +
                 "bytes=${update.bytesTransferred}/${update.totalBytes}")
 
+            // Update transfer progress
+            if (update.totalBytes > 0) {
+                val progress = update.bytesTransferred.toFloat() / update.totalBytes.toFloat()
+                _transferProgress.value = progress.coerceIn(0f, 1f)
+            }
+
             if (update.status == PayloadTransferUpdate.Status.SUCCESS) {
+                _transferProgress.value = null
                 val (senderEndpoint, payload) = pendingFilePayloads.remove(payloadId) ?: return
 
                 // Get the received file from the payload
@@ -179,6 +190,7 @@ class NearbySessionManager(private val context: Context) {
                         "legacy=${legacyFile.absolutePath} (exists=${legacyFile.exists()})")
                 }
             } else if (update.status == PayloadTransferUpdate.Status.FAILURE) {
+                _transferProgress.value = null
                 pendingFilePayloads.remove(payloadId)
                 Log.e(TAG, "FILE payload $payloadId FAILED")
             }
@@ -215,6 +227,9 @@ class NearbySessionManager(private val context: Context) {
     fun stopDiscovery() {
         connectionsClient.stopDiscovery()
         _isDiscovering.value = false
+    }
+
+    fun clearDiscoveredEndpoints() {
         _discoveredEndpoints.value = emptyList()
     }
 

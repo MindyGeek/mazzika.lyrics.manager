@@ -6,6 +6,7 @@ sealed class SyncMessage {
 
     data class SessionInfo(
         val title: String,
+        val fileName: String,
         val pageCount: Int,
         val fileHash: String,
     ) : SyncMessage()
@@ -16,12 +17,15 @@ sealed class SyncMessage {
 
     data class PageChange(val page: Int) : SyncMessage()
 
+    data class SessionEnd(val reason: String) : SyncMessage()
+
     fun toBytes(): ByteArray {
         val json = JSONObject()
         when (this) {
             is SessionInfo -> {
                 json.put("type", "SessionInfo")
                 json.put("title", title)
+                json.put("fileName", fileName)
                 json.put("pageCount", pageCount)
                 json.put("fileHash", fileHash)
             }
@@ -37,6 +41,10 @@ sealed class SyncMessage {
                 json.put("type", "PageChange")
                 json.put("page", page)
             }
+            is SessionEnd -> {
+                json.put("type", "SessionEnd")
+                json.put("reason", reason)
+            }
         }
         return json.toString().toByteArray(Charsets.UTF_8)
     }
@@ -48,12 +56,17 @@ sealed class SyncMessage {
                 when (json.getString("type")) {
                     "SessionInfo" -> SessionInfo(
                         title = json.getString("title"),
+                        // Backwards-compat: older pilots didn't send `fileName`.
+                        fileName = json.optString("fileName", "").ifBlank {
+                            json.getString("title") + ".pdf"
+                        },
                         pageCount = json.getInt("pageCount"),
                         fileHash = json.getString("fileHash"),
                     )
                     "AlreadyHave" -> AlreadyHave(fileHash = json.getString("fileHash"))
                     "NeedFile" -> NeedFile(fileHash = json.getString("fileHash"))
                     "PageChange" -> PageChange(page = json.getInt("page"))
+                    "SessionEnd" -> SessionEnd(reason = json.optString("reason", ""))
                     else -> null
                 }
             } catch (e: Exception) {

@@ -1,27 +1,18 @@
 package com.mazzika.lyrics.ui.settings
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,213 +24,172 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.preferences.UserPreferences
-import com.mazzika.lyrics.ui.theme.DarkBackground
-import com.mazzika.lyrics.ui.theme.DarkSurface
-import com.mazzika.lyrics.ui.theme.DarkSurfaceElevated
-import com.mazzika.lyrics.ui.theme.DarkTextMuted
-import com.mazzika.lyrics.ui.theme.DarkTextPrimary
-import com.mazzika.lyrics.ui.theme.DarkTextSecondary
-import com.mazzika.lyrics.ui.theme.Gold
-import com.mazzika.lyrics.ui.theme.GoldDeep
+import com.mazzika.lyrics.ui.components.GroupLabel
+import com.mazzika.lyrics.ui.components.SettingsCard
+import com.mazzika.lyrics.ui.components.SettingsRow
+import com.mazzika.lyrics.ui.components.SettingsValueText
+import com.mazzika.lyrics.ui.components.StudioToggle
+import com.mazzika.lyrics.ui.components.ThemeChoice
+import com.mazzika.lyrics.ui.components.ThemePicker
+import com.mazzika.lyrics.ui.theme.Inter
+import com.mazzika.lyrics.ui.theme.LocalStudioTokens
 
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
 ) {
+    val tokens = LocalStudioTokens.current
     val theme by viewModel.theme.collectAsState()
     val autoSaveSync by viewModel.autoSaveSync.collectAsState()
     val deviceName by viewModel.deviceName.collectAsState()
 
+    var autoAcceptSessions by remember { mutableStateOf(false) }
+    var keepScreenOn by remember { mutableStateOf(true) }
     var showDeviceNameDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = DarkBackground,
-    ) { innerPadding ->
+    Box(modifier = Modifier.fillMaxSize().background(tokens.bg)) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 80.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
         ) {
+            // ── Affichage
             item {
-                Text(
-                    text = "Paramètres",
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp),
-                    color = DarkTextPrimary,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-
-            // Affichage section
-            item {
-                SectionLabel(title = "Affichage")
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Thème",
-                            color = DarkTextPrimary,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        ThemePicker(
-                            selectedTheme = theme,
-                            onThemeSelected = { viewModel.setTheme(it) },
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 0.dp)) {
+                    GroupLabel(text = "Affichage")
+                    SettingsCard {
+                        SettingsRow(
+                            title = "Thème",
+                            description = "Apparence de l'application",
+                            isLast = true,
+                            trailing = {
+                                ThemePicker(
+                                    selected = when (theme) {
+                                        UserPreferences.ThemeMode.LIGHT -> ThemeChoice.LIGHT
+                                        UserPreferences.ThemeMode.DARK -> ThemeChoice.DARK
+                                        UserPreferences.ThemeMode.SYSTEM -> ThemeChoice.SYSTEM
+                                    },
+                                    onSelect = {
+                                        viewModel.setTheme(
+                                            when (it) {
+                                                ThemeChoice.LIGHT -> UserPreferences.ThemeMode.LIGHT
+                                                ThemeChoice.DARK -> UserPreferences.ThemeMode.DARK
+                                                ThemeChoice.SYSTEM -> UserPreferences.ThemeMode.SYSTEM
+                                            },
+                                        )
+                                    },
+                                )
+                            },
                         )
                     }
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
-
-            // Synchronisation section
+            // ── Synchronisation
             item {
-                SectionLabel(title = "Synchronisation")
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Column {
-                        // Auto-save toggle
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Sauvegarde automatique",
-                                    color = DarkTextPrimary,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Medium,
+                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                    GroupLabel(text = "Synchronisation")
+                    SettingsCard {
+                        SettingsRow(
+                            title = "Sauvegarde automatique",
+                            description = "Fichiers reçus ajoutés au catalogue",
+                            trailing = {
+                                StudioToggle(
+                                    checked = autoSaveSync,
+                                    onCheckedChange = { viewModel.setAutoSaveSync(it) },
                                 )
-                                Text(
-                                    text = "Sauvegarder les fichiers reçus automatiquement",
-                                    color = DarkTextMuted,
-                                    fontSize = 12.sp,
-                                )
-                            }
-                            Switch(
-                                checked = autoSaveSync,
-                                onCheckedChange = { viewModel.setAutoSaveSync(it) },
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = Gold,
-                                    checkedThumbColor = DarkBackground,
-                                    uncheckedTrackColor = DarkSurfaceElevated,
-                                    uncheckedThumbColor = DarkTextMuted,
-                                ),
-                            )
-                        }
-
-                        // Divider
-                        androidx.compose.material3.HorizontalDivider(
-                            color = DarkSurfaceElevated,
-                            modifier = Modifier.padding(horizontal = 16.dp),
+                            },
                         )
-
-                        // Device name card
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
-                            colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                            shape = RoundedCornerShape(10.dp),
+                        SettingsRow(
+                            title = "Nom de l'appareil",
+                            description = "Affiché lors de la découverte",
                             onClick = { showDeviceNameDialog = true },
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "Nom de l'appareil",
-                                        color = DarkTextPrimary,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Medium,
-                                    )
-                                    Text(
-                                        text = deviceName,
-                                        color = DarkTextSecondary,
-                                        fontSize = 13.sp,
-                                    )
-                                }
-                                Text(
-                                    text = "Modifier",
-                                    color = Gold,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
+                            trailing = { SettingsValueText("$deviceName ›") },
+                        )
+                        SettingsRow(
+                            title = "Accepter automatiquement",
+                            description = "Rejoindre les sessions du même groupe",
+                            isLast = true,
+                            trailing = {
+                                StudioToggle(
+                                    checked = autoAcceptSessions,
+                                    onCheckedChange = { autoAcceptSessions = it },
                                 )
-                            }
-                        }
+                            },
+                        )
                     }
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
-
-            // À propos section
+            // ── Lecteur
             item {
-                SectionLabel(title = "À propos")
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                    shape = RoundedCornerShape(14.dp),
+                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                    GroupLabel(text = "Lecteur")
+                    SettingsCard {
+                        SettingsRow(
+                            title = "Maintenir écran allumé",
+                            description = "Pendant la lecture d'une partition",
+                            isLast = true,
+                            trailing = {
+                                StudioToggle(
+                                    checked = keepScreenOn,
+                                    onCheckedChange = { keepScreenOn = it },
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+
+            // ── À propos
+            item {
+                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                    GroupLabel(text = "À propos")
+                    SettingsCard {
+                        SettingsRow(
+                            title = "Version",
+                            trailing = { SettingsValueText(text = "1.0.0", isGold = false) },
+                        )
+                        SettingsRow(
+                            title = "Conditions d'utilisation",
+                            isLast = true,
+                            trailing = { SettingsValueText("›") },
+                            onClick = {},
+                        )
+                    }
+                }
+            }
+
+            // ── Footer
+            item {
+                Spacer(Modifier.height(40.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Version",
-                            color = DarkTextPrimary,
-                            fontSize = 15.sp,
-                        )
-                        Text(
-                            text = "1.0.0",
-                            color = DarkTextMuted,
-                            fontSize = 14.sp,
-                        )
-                    }
+                    Text(
+                        text = "MAZZIKA LYRICS",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        letterSpacing = 2.sp,
+                        color = tokens.textDim,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "Fait avec ♥ pour les musiciens",
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = tokens.textMid,
+                        textAlign = TextAlign.Center,
+                    )
                 }
-            }
-
-            item { Spacer(modifier = Modifier.height(40.dp)) }
-
-            // Footer
-            item {
-                Text(
-                    text = "Mazzika Lyrics",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    color = DarkTextMuted,
-                    fontSize = 13.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
             }
         }
     }
@@ -257,94 +207,52 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SectionLabel(title: String) {
-    Text(
-        text = title,
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
-        color = DarkTextSecondary,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.5.sp,
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ThemePicker(
-    selectedTheme: UserPreferences.ThemeMode,
-    onThemeSelected: (UserPreferences.ThemeMode) -> Unit,
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        listOf(
-            UserPreferences.ThemeMode.LIGHT to "Clair",
-            UserPreferences.ThemeMode.DARK to "Sombre",
-            UserPreferences.ThemeMode.SYSTEM to "Auto",
-        ).forEach { (mode, label) ->
-            val selected = selectedTheme == mode
-            FilterChip(
-                selected = selected,
-                onClick = { onThemeSelected(mode) },
-                label = {
-                    Text(
-                        text = label,
-                        color = if (selected) DarkBackground else DarkTextPrimary,
-                        fontSize = 13.sp,
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = DarkSurfaceElevated,
-                    selectedContainerColor = Gold,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = selected,
-                    borderColor = DarkSurfaceElevated,
-                    selectedBorderColor = Gold,
-                ),
-            )
-        }
-    }
-}
-
-@Composable
 private fun DeviceNameDialog(
     currentName: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
+    val tokens = LocalStudioTokens.current
     var name by remember { mutableStateOf(currentName) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurfaceElevated,
-        title = { Text("Nom de l'appareil", color = DarkTextPrimary) },
+        containerColor = tokens.surface,
+        title = {
+            Text(
+                "Nom de l'appareil",
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 18.sp,
+                color = tokens.text,
+            )
+        },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Nom") },
+                label = { Text("Nom", fontFamily = Inter) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Gold,
-                    unfocusedBorderColor = DarkTextMuted,
-                    focusedLabelColor = Gold,
-                    unfocusedLabelColor = DarkTextMuted,
-                    focusedTextColor = DarkTextPrimary,
-                    unfocusedTextColor = DarkTextPrimary,
+                    focusedBorderColor = tokens.gold,
+                    unfocusedBorderColor = tokens.border,
+                    focusedLabelColor = tokens.gold,
+                    unfocusedLabelColor = tokens.textMid,
+                    focusedTextColor = tokens.text,
+                    unfocusedTextColor = tokens.text,
+                    cursorColor = tokens.gold,
                 ),
             )
         },
         confirmButton = {
             TextButton(onClick = { if (name.isNotBlank()) onConfirm(name.trim()) }) {
-                Text("Enregistrer", color = Gold)
+                Text("Enregistrer", color = tokens.gold, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Annuler", color = DarkTextSecondary)
+                Text("Annuler", color = tokens.textMid, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
             }
         },
     )

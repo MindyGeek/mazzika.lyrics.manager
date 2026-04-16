@@ -83,6 +83,7 @@ class ReaderViewModel(
                     _pageCount.value = pdfRenderer.pageCount
                 }
                 Log.d("ReaderViewModel", "openRenderer: success, pageCount=${pdfRenderer.pageCount}")
+                applyPendingPage()
             } catch (e: Exception) {
                 Log.e("ReaderViewModel", "openRenderer: failed", e)
             }
@@ -119,9 +120,24 @@ class ReaderViewModel(
         }
     }
 
+    private var pendingPage: Int? = null
+
     fun setCurrentPage(page: Int) {
+        if (_pageCount.value > 0 && page in 0 until _pageCount.value) {
+            _currentPage.value = page
+            pendingPage = null
+        } else if (_pageCount.value == 0) {
+            // PDF not loaded yet — queue the page for later
+            pendingPage = page
+        }
+    }
+
+    /** Called after PDF is loaded to apply any pending page request. */
+    private fun applyPendingPage() {
+        val page = pendingPage ?: return
         if (page in 0 until _pageCount.value) {
             _currentPage.value = page
+            pendingPage = null
         }
     }
 

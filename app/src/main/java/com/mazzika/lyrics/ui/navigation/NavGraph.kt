@@ -19,6 +19,8 @@ import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.ui.catalog.CatalogScreen
 import com.mazzika.lyrics.ui.folders.FolderDetailScreen
+import com.mazzika.lyrics.ui.folders.FoldersScreen
+import com.mazzika.lyrics.ui.folders.FolderDetailViewModel
 import com.mazzika.lyrics.ui.home.HomeScreen
 import com.mazzika.lyrics.ui.reader.ReaderScreen
 import com.mazzika.lyrics.ui.reader.ReaderViewModel
@@ -32,6 +34,7 @@ import com.mazzika.lyrics.ui.sync.SyncViewModel
 fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    onFolderChanged: (name: String?, icon: String?) -> Unit = { _, _ -> },
 ) {
     // Activity-scoped SyncViewModel so it is shared between Sync and Reader screens
     val activity = LocalContext.current as ComponentActivity
@@ -44,9 +47,6 @@ fun NavGraph(
     ) {
         composable(Screen.Home.route) {
             HomeScreen(
-                onNavigateToFolder = { folderId ->
-                    navController.navigate(Screen.FolderDetail.createRoute(folderId))
-                },
                 onNavigateToReader = { documentId ->
                     navController.navigate(Screen.Reader.createRoute(documentId))
                 },
@@ -57,12 +57,20 @@ fun NavGraph(
                         restoreState = true
                     }
                 },
-                onNavigateToSettings = {
-                    navController.navigate(Screen.Settings.route) {
+                onNavigateToCatalog = {
+                    navController.navigate(Screen.Catalog.route) {
                         popUpTo(Screen.Home.route) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
+                },
+            )
+        }
+
+        composable(Screen.Folders.route) {
+            FoldersScreen(
+                onNavigateToFolder = { folderId ->
+                    navController.navigate(Screen.FolderDetail.createRoute(folderId))
                 },
             )
         }
@@ -77,8 +85,10 @@ fun NavGraph(
 
         composable(Screen.Sync.route) {
             SyncScreen(
-                onNavigateToReaderSync = {
-                    navController.navigate(Screen.ReaderSync.route)
+                onOpenSharedFile = {
+                    navController.navigate(Screen.ReaderSync.route) {
+                        launchSingleTop = true
+                    }
                 },
                 onNavigateToReader = { documentId ->
                     navController.navigate(Screen.Reader.createRoute(documentId))
@@ -97,6 +107,13 @@ fun NavGraph(
                 navArgument("folderId") { type = NavType.LongType },
             ),
         ) {
+            val folderDetailViewModel: FolderDetailViewModel = viewModel()
+            val folder by folderDetailViewModel.folder.collectAsState()
+
+            LaunchedEffect(folder) {
+                onFolderChanged(folder?.name, folder?.icon)
+            }
+
             FolderDetailScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToFolder = { folderId ->
@@ -105,6 +122,7 @@ fun NavGraph(
                 onNavigateToReader = { documentId ->
                     navController.navigate(Screen.Reader.createRoute(documentId))
                 },
+                viewModel = folderDetailViewModel,
             )
         }
 
@@ -116,6 +134,7 @@ fun NavGraph(
         ) {
             val readerViewModel: ReaderViewModel = viewModel()
             val role by syncViewModel.role.collectAsState()
+            val connectedEndpointsList by syncViewModel.connectedEndpoints.collectAsState()
             val syncMode = when (role) {
                 SyncRole.PILOT -> SyncMode.PILOT
                 else -> SyncMode.NONE
@@ -126,6 +145,8 @@ fun NavGraph(
                 onNavigateToSync = { navController.navigate(Screen.Sync.route) },
                 syncMode = syncMode,
                 onPageChangedForSync = { page -> syncViewModel.broadcastPageChange(page) },
+                connectedCount = connectedEndpointsList.size,
+                isConnectionHealthy = connectedEndpointsList.isNotEmpty(),
             )
         }
 
@@ -139,18 +160,31 @@ fun NavGraph(
                 }
             }
             val syncPageValue by syncViewModel.syncPage.collectAsState()
+            val pilotPage by syncViewModel.pilotCurrentPage.collectAsState()
             val isDetached by syncViewModel.isDetached.collectAsState()
             val isTempFile by syncViewModel.isTempFile.collectAsState()
+            val syncConnectedEndpoints by syncViewModel.connectedEndpoints.collectAsState()
+            val sessionEnded by syncViewModel.sessionEndedByPilot.collectAsState()
+
+            // Auto-close the reader when the pilot ends the session; the confirmation
+            // modal is hosted by SyncScreen, which the back-stack will surface next.
+            LaunchedEffect(sessionEnded) {
+                if (sessionEnded) navController.popBackStack()
+            }
+
             ReaderScreen(
                 viewModel = readerViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToSync = { navController.navigate(Screen.Sync.route) },
                 syncMode = SyncMode.FOLLOWER,
                 syncPage = syncPageValue,
+                pilotCurrentPage = pilotPage,
                 isDetached = isDetached,
                 onToggleDetached = { syncViewModel.toggleDetached() },
                 isTempFile = isTempFile,
                 onSaveToCatalogue = { syncViewModel.saveToCatalogue() },
+                connectedCount = syncConnectedEndpoints.size,
+                isConnectionHealthy = syncConnectedEndpoints.isNotEmpty(),
             )
         }
     }

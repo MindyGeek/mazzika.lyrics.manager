@@ -26,6 +26,9 @@ class NearbyService : Service() {
     inner class LocalBinder : Binder() {
         fun getSessionManager(): NearbySessionManager = sessionManager
         fun getService(): NearbyService = this@NearbyService
+        /** Proactively clear the foreground notification — safe to call from callers
+         *  that are about to unbind/stop the service. */
+        fun tearDownForeground() = clearForegroundNotification()
     }
 
     private val binder = LocalBinder()
@@ -49,13 +52,30 @@ class NearbyService : Service() {
     override fun onBind(intent: Intent): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
+        // Session is one-shot — we don't want the system to resurrect the service
+        // after we explicitly stop it.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        clearForegroundNotification()
         sessionManager.disconnectAll()
         serviceScope.cancel()
+        super.onDestroy()
+    }
+
+    private fun clearForegroundNotification() {
+        // Tear down the foreground notification. STOP_FOREGROUND_REMOVE guarantees
+        // the notification is removed (not just detached).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
+        // Extra safety: explicitly cancel the notification in case the platform
+        // kept a stale copy (seen on some OEMs).
+        getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
     }
 
     private fun createNotificationChannel() {

@@ -13,17 +13,24 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
 import com.mazzika.lyrics.data.preferences.UserPreferences.ThemeMode
 import com.mazzika.lyrics.ui.navigation.BottomNavBar
+import com.mazzika.lyrics.ui.navigation.MazzikaTopBar
 import com.mazzika.lyrics.ui.navigation.NavGraph
-import com.mazzika.lyrics.ui.navigation.bottomNavItems
+import com.mazzika.lyrics.ui.navigation.Screen
+import com.mazzika.lyrics.ui.navigation.getScreenInfo
 import com.mazzika.lyrics.ui.theme.MazzikaLyricsTheme
 import kotlinx.coroutines.launch
 
@@ -47,11 +54,37 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                val mainTabRoutes = bottomNavItems.map { it.screen.route }.toSet()
-                val showBottomBar = currentRoute in mainTabRoutes
+                val isReaderScreen = currentRoute?.startsWith("reader") == true || currentRoute == Screen.ReaderSync.route
+                val isSettingsScreen = currentRoute == Screen.Settings.route
+                val showBottomBar = !isReaderScreen && !isSettingsScreen
+
+                val screenInfo = getScreenInfo(currentRoute)
+
+                var currentFolderName by remember { mutableStateOf<String?>(null) }
+                var currentFolderIcon by remember { mutableStateOf<String?>(null) }
+
+                LaunchedEffect(currentRoute) {
+                    if (currentRoute?.startsWith("folder/") != true) {
+                        currentFolderName = null
+                        currentFolderIcon = null
+                    }
+                }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
+                    topBar = {
+                        if (screenInfo.showTopBar) {
+                            MazzikaTopBar(
+                                title = screenInfo.title,
+                                showBackButton = screenInfo.showBackButton,
+                                onBackClick = { navController.popBackStack() },
+                                onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                                showSettingsButton = (currentRoute != Screen.Settings.route),
+                                folderName = if (currentRoute?.startsWith("folder/") == true) currentFolderName else null,
+                                folderIcon = if (currentRoute?.startsWith("folder/") == true) currentFolderIcon else null,
+                            )
+                        }
+                    },
                     bottomBar = {
                         AnimatedVisibility(
                             visible = showBottomBar,
@@ -67,6 +100,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding),
+                        onFolderChanged = { name, icon ->
+                            currentFolderName = name
+                            currentFolderIcon = icon
+                        },
                     )
                 }
             }

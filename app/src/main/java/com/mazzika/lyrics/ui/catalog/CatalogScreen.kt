@@ -1,10 +1,7 @@
 package com.mazzika.lyrics.ui.catalog
 
-import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,28 +19,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,132 +39,108 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.mazzika.lyrics.data.db.entity.FolderEntity
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
-import com.mazzika.lyrics.ui.theme.DarkBackground
-import com.mazzika.lyrics.ui.theme.DarkSurface
-import com.mazzika.lyrics.ui.theme.DarkSurfaceElevated
-import com.mazzika.lyrics.ui.theme.DarkTextMuted
-import com.mazzika.lyrics.ui.theme.DarkTextPrimary
-import com.mazzika.lyrics.ui.theme.DarkTextSecondary
-import com.mazzika.lyrics.ui.theme.Gold
-import com.mazzika.lyrics.ui.theme.GoldDeep
-import com.mazzika.lyrics.ui.theme.PlayfairDisplay
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.mazzika.lyrics.ui.components.DocRow
+import com.mazzika.lyrics.ui.components.FilterChip
+import com.mazzika.lyrics.ui.components.SearchInputBar
+import com.mazzika.lyrics.ui.components.StudioFab
+import com.mazzika.lyrics.ui.components.paletteFor
+import com.mazzika.lyrics.ui.home.FolderSelectorDialogContent
+import com.mazzika.lyrics.ui.theme.Inter
+import com.mazzika.lyrics.ui.theme.LocalStudioTokens
+
+private enum class CatalogChip(val label: String) {
+    RECENT("Récents"),
+    A_Z("A-Z"),
+}
 
 @Composable
 fun CatalogScreen(
     onNavigateToReader: (Long) -> Unit,
     viewModel: CatalogViewModel = viewModel(),
 ) {
+    val tokens = LocalStudioTokens.current
     val documents by viewModel.documents.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val sortMode by viewModel.sortMode.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
     val allFolders by viewModel.allFolders.collectAsState()
 
     var documentToAddToFolder by remember { mutableStateOf<Long?>(null) }
+    var documentToDelete by remember { mutableStateOf<PdfDocumentEntity?>(null) }
+    var selectedChip by remember { mutableStateOf(CatalogChip.RECENT) }
 
     val pdfPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        uri?.let { viewModel.importPdf(it) }
-    }
+    ) { uri -> uri?.let { viewModel.importPdf(it) } }
 
-    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
-
-    Box(modifier = Modifier.fillMaxSize().background(DarkBackground)) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 80.dp),
-        ) {
-            // Header
-            item {
-                CatalogHeader(documentCount = documents.size)
-            }
-
-            // Search bar
-            item {
-                SearchBar(
-                    query = searchQuery,
-                    onQueryChange = { viewModel.setSearchQuery(it) },
-                )
-            }
-
-            // Sort chips
-            item {
-                SortChips(
-                    currentMode = sortMode,
-                    onModeChange = { viewModel.setSortMode(it) },
-                )
-            }
-
-            // File list or empty state
-            if (documents.isEmpty()) {
-                item {
-                    EmptyCatalogState()
-                }
-            } else if (isTablet) {
-                item {
-                    TwoColumnFileGrid(
-                        documents = documents,
-                        onNavigateToReader = onNavigateToReader,
-                        onDelete = { viewModel.deleteDocument(it) },
-                        onAddToFolder = { documentToAddToFolder = it },
-                    )
-                }
-            } else {
-                items(documents) { document ->
-                    FileCard(
-                        document = document,
-                        onClick = { onNavigateToReader(document.id) },
-                        onDelete = { viewModel.deleteDocument(document.id) },
-                        onAddToFolder = { documentToAddToFolder = document.id },
-                    )
+    Box(modifier = Modifier.fillMaxSize().background(tokens.bg)) {
+        // Sticky header (Column that stays fixed) + scrolling list below
+        Column(modifier = Modifier.fillMaxSize()) {
+            CatalogStickyHeader(
+                count = documents.size,
+                query = searchQuery,
+                onQueryChange = { viewModel.setSearchQuery(it) },
+                selectedChip = selectedChip,
+                onChipSelected = { chip ->
+                    selectedChip = chip
+                    when (chip) {
+                        CatalogChip.RECENT -> viewModel.setSortMode(SortMode.RECENT)
+                        CatalogChip.A_Z -> viewModel.setSortMode(SortMode.TITLE)
+                    }
+                },
+            )
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 100.dp),
+            ) {
+                if (documents.isEmpty() && !isImporting) {
+                    item { EmptyCatalogState() }
+                } else {
+                    items(documents) { doc ->
+                        Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+                            DocRowWithMenu(
+                                document = doc,
+                                onClick = { onNavigateToReader(doc.id) },
+                                onAddToFolder = { documentToAddToFolder = doc.id },
+                                onDelete = { documentToDelete = doc },
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // FAB Import
-        FloatingActionButton(
-            onClick = {
-                if (!isImporting) {
-                    pdfPickerLauncher.launch(arrayOf("application/pdf"))
-                }
-            },
-            containerColor = Gold,
-            contentColor = DarkBackground,
-            shape = RoundedCornerShape(16.dp),
+        if (isImporting) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = tokens.gold)
+            }
+        }
+
+        StudioFab(
+            onClick = { pdfPickerLauncher.launch(arrayOf("application/pdf")) },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(16.dp),
+                .padding(end = 20.dp, bottom = 24.dp),
         ) {
-            if (isImporting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = DarkBackground,
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = "Importer un PDF")
-            }
+            Icon(Icons.Filled.Add, contentDescription = "Importer", modifier = Modifier.size(28.dp))
         }
     }
 
-    // Dialog: Ajouter à un dossier
-    documentToAddToFolder?.let { docId ->
-        AddToFolderDialog(
-            folders = allFolders,
+    val docId = documentToAddToFolder
+    if (docId != null) {
+        FolderSelectorDialogContent(
+            allFolders = allFolders,
+            hasSubFolders = { folderId -> viewModel.hasSubFolders(folderId) },
             onDismiss = { documentToAddToFolder = null },
             onFolderSelected = { folderId ->
                 viewModel.addToFolder(docId, folderId)
@@ -189,365 +148,185 @@ fun CatalogScreen(
             },
         )
     }
-}
 
-@Composable
-private fun CatalogHeader(documentCount: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column {
-            Text(
-                text = "Catalogue",
-                fontFamily = PlayfairDisplay,
-                fontWeight = FontWeight.Bold,
-                fontSize = 28.sp,
-                color = Gold,
-            )
-            Text(
-                text = "$documentCount fichier${if (documentCount != 1) "s" else ""}",
-                fontSize = 13.sp,
-                color = DarkTextMuted,
-            )
-        }
+    val docToDelete = documentToDelete
+    if (docToDelete != null) {
+        DeleteConfirmDialog(
+            title = docToDelete.title,
+            onDismiss = { documentToDelete = null },
+            onConfirm = {
+                viewModel.deleteDocument(docToDelete.id)
+                documentToDelete = null
+            },
+        )
     }
 }
 
 @Composable
-private fun SearchBar(
+private fun CatalogStickyHeader(
+    count: Int,
     query: String,
     onQueryChange: (String) -> Unit,
+    selectedChip: CatalogChip,
+    onChipSelected: (CatalogChip) -> Unit,
 ) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        placeholder = { Text("Rechercher...", color = DarkTextMuted) },
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = "Rechercher",
-                tint = DarkTextMuted,
+    val tokens = LocalStudioTokens.current
+    Column(modifier = Modifier.background(tokens.bg)) {
+        Row(
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(
+                text = "Catalogue",
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 24.sp,
+                letterSpacing = (-0.72).sp,
+                color = tokens.text,
             )
-        },
-        singleLine = true,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Gold,
-            unfocusedBorderColor = DarkSurface,
-            focusedTextColor = DarkTextPrimary,
-            unfocusedTextColor = DarkTextPrimary,
-            focusedContainerColor = DarkSurface,
-            unfocusedContainerColor = DarkSurface,
-            cursorColor = Gold,
-        ),
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SortChips(
-    currentMode: SortMode,
-    onModeChange: (SortMode) -> Unit,
-) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-    ) {
-        item {
-            FilterChip(
-                selected = currentMode == SortMode.RECENT,
-                onClick = { onModeChange(SortMode.RECENT) },
-                label = { Text("Récents", fontSize = 13.sp) },
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = DarkSurface,
-                    selectedContainerColor = GoldDeep,
-                    labelColor = DarkTextSecondary,
-                    selectedLabelColor = Gold,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = currentMode == SortMode.RECENT,
-                    borderColor = DarkSurface,
-                    selectedBorderColor = Gold,
-                ),
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "$count morceaux",
+                fontFamily = Inter,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = tokens.textMid,
+                modifier = Modifier.padding(bottom = 4.dp),
             )
         }
-        item {
-            FilterChip(
-                selected = currentMode == SortMode.TITLE,
-                onClick = { onModeChange(SortMode.TITLE) },
-                label = { Text("A-Z", fontSize = 13.sp) },
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = DarkSurface,
-                    selectedContainerColor = GoldDeep,
-                    labelColor = DarkTextSecondary,
-                    selectedLabelColor = Gold,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = currentMode == SortMode.TITLE,
-                    borderColor = DarkSurface,
-                    selectedBorderColor = Gold,
-                ),
-            )
+        Box(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp)) {
+            SearchInputBar(value = query, onValueChange = onQueryChange)
         }
-    }
-}
-
-@Composable
-private fun TwoColumnFileGrid(
-    documents: List<PdfDocumentEntity>,
-    onNavigateToReader: (Long) -> Unit,
-    onDelete: (Long) -> Unit,
-    onAddToFolder: (Long) -> Unit,
-) {
-    val rows = documents.chunked(2)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        rows.forEach { rowDocs ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                rowDocs.forEach { document ->
-                    Box(modifier = Modifier.weight(1f)) {
-                        FileCard(
-                            document = document,
-                            onClick = { onNavigateToReader(document.id) },
-                            onDelete = { onDelete(document.id) },
-                            onAddToFolder = { onAddToFolder(document.id) },
-                            isGridItem = true,
-                        )
-                    }
-                }
-                // Fill empty cell if odd count
-                if (rowDocs.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(CatalogChip.entries) { chip ->
+                FilterChip(
+                    label = chip.label,
+                    selected = chip == selectedChip,
+                    onClick = { onChipSelected(chip) },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun FileCard(
+private fun DocRowWithMenu(
     document: PdfDocumentEntity,
     onClick: () -> Unit,
-    onDelete: () -> Unit,
     onAddToFolder: () -> Unit,
-    isGridItem: Boolean = false,
+    onDelete: () -> Unit,
 ) {
+    val tokens = LocalStudioTokens.current
     var showMenu by remember { mutableStateOf(false) }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = if (isGridItem) 0.dp else 20.dp,
-                vertical = if (isGridItem) 0.dp else 6.dp,
-            )
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.12f)),
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    Box(modifier = Modifier.fillMaxWidth()) {
+        DocRow(
+            title = document.title,
+            letter = document.title.firstOrNull()?.uppercase() ?: "?",
+            palette = paletteFor(document.id),
+            meta = "${document.pageCount} pages",
+            onClick = onClick,
+            onMoreClick = { showMenu = true },
+        )
+        // Dropdown anchored to the right edge of the row; the `offset` shifts it
+        // leftward so the menu sits to the LEFT of the ⋯ button rather than
+        // overlapping it.
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+            offset = DpOffset(x = (-160).dp, y = 0.dp),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .background(tokens.surface),
         ) {
-            // Thumbnail
-            DocumentThumbnail(thumbnailPath = document.thumbnailPath)
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = document.title,
-                    color = DarkTextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${document.pageCount} page${if (document.pageCount != 1) "s" else ""}",
-                    color = DarkTextMuted,
-                    fontSize = 12.sp,
-                )
-                Text(
-                    text = formatDate(document.importedAt),
-                    color = DarkTextMuted,
-                    fontSize = 11.sp,
-                )
-            }
-
-            Box {
-                IconButton(onClick = { showMenu = true }) {
-                    Icon(
-                        imageVector = Icons.Filled.MoreVert,
-                        contentDescription = "Options",
-                        tint = DarkTextMuted,
-                    )
-                }
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    containerColor = DarkSurfaceElevated,
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Ouvrir", color = DarkTextPrimary) },
-                        onClick = {
-                            showMenu = false
-                            onClick()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Ajouter à un dossier", color = DarkTextPrimary) },
-                        onClick = {
-                            showMenu = false
-                            onAddToFolder()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Supprimer", color = Color(0xFFCF6679)) },
-                        onClick = {
-                            showMenu = false
-                            onDelete()
-                        },
-                    )
-                }
-            }
+            DropdownMenuItem(
+                text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
+                onClick = { showMenu = false; onClick() },
+            )
+            DropdownMenuItem(
+                text = { Text("Ranger dans un dossier", fontFamily = Inter, color = tokens.text) },
+                onClick = { showMenu = false; onAddToFolder() },
+            )
+            DropdownMenuItem(
+                text = { Text("Supprimer", fontFamily = Inter, color = tokens.danger) },
+                onClick = { showMenu = false; onDelete() },
+            )
         }
     }
 }
 
 @Composable
-private fun AddToFolderDialog(
-    folders: List<FolderEntity>,
+private fun DeleteConfirmDialog(
+    title: String,
     onDismiss: () -> Unit,
-    onFolderSelected: (Long) -> Unit,
+    onConfirm: () -> Unit,
 ) {
+    val tokens = LocalStudioTokens.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurfaceElevated,
-        title = { Text("Ajouter à un dossier", color = DarkTextPrimary) },
+        containerColor = tokens.surface,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                "Supprimer ce fichier ?",
+                color = tokens.text,
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 18.sp,
+            )
+        },
         text = {
-            if (folders.isEmpty()) {
-                Text("Aucun dossier. Créez-en un depuis l'accueil.", color = DarkTextMuted, fontSize = 14.sp)
-            } else {
-                Column {
-                    folders.forEach { folder ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onFolderSelected(folder.id) }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = folder.icon ?: "\uD83D\uDCC1",
-                                fontSize = 20.sp,
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = folder.name,
-                                color = DarkTextPrimary,
-                                fontSize = 15.sp,
-                            )
-                        }
-                    }
-                }
+            Text(
+                text = "« $title » sera retiré du catalogue. Cette action est irréversible.",
+                color = tokens.textMid,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Supprimer", color = tokens.danger, fontFamily = Inter, fontWeight = FontWeight.Bold)
             }
         },
-        confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Annuler", color = DarkTextSecondary)
+                Text("Annuler", color = tokens.textMid, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
             }
         },
     )
-}
-
-@Composable
-private fun DocumentThumbnail(thumbnailPath: String) {
-    val bitmap = remember(thumbnailPath) {
-        runCatching {
-            val file = File(thumbnailPath)
-            if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
-        }.getOrNull()
-    }
-
-    Box(
-        modifier = Modifier
-            .size(56.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(DarkSurfaceElevated),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Filled.MusicNote,
-                contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(28.dp),
-            )
-        }
-    }
 }
 
 @Composable
 private fun EmptyCatalogState() {
+    val tokens = LocalStudioTokens.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            imageVector = Icons.Filled.FolderOpen,
-            contentDescription = null,
-            tint = DarkTextMuted,
-            modifier = Modifier.size(64.dp),
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = "📥", fontSize = 40.sp)
+        Spacer(Modifier.height(12.dp))
         Text(
             text = "Aucun fichier",
-            color = DarkTextSecondary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
+            fontFamily = Inter,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp,
+            color = tokens.textMid,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
-            text = "Appuyez sur + pour importer un PDF",
-            color = DarkTextMuted,
-            fontSize = 13.sp,
+            text = "Importez votre premier PDF avec le bouton +",
+            fontFamily = Inter,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = tokens.textDim,
         )
     }
-}
-
-private fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-    return sdf.format(Date(timestamp))
 }

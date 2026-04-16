@@ -1,7 +1,17 @@
 package com.mazzika.lyrics.ui.folders
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,23 +31,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,16 +60,16 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.db.entity.FolderEntity
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
+import com.mazzika.lyrics.ui.components.DocRow
+import com.mazzika.lyrics.ui.components.GroupLabel
+import com.mazzika.lyrics.ui.components.SectionHeader
+import com.mazzika.lyrics.ui.components.StudioFab
+import com.mazzika.lyrics.ui.components.SubfolderChip
+import com.mazzika.lyrics.ui.components.paletteFor
 import com.mazzika.lyrics.ui.home.CreateFolderDialog
-import com.mazzika.lyrics.ui.theme.DarkBackground
-import com.mazzika.lyrics.ui.theme.DarkSurface
-import com.mazzika.lyrics.ui.theme.DarkSurfaceElevated
-import com.mazzika.lyrics.ui.theme.DarkTextMuted
-import com.mazzika.lyrics.ui.theme.DarkTextPrimary
-import com.mazzika.lyrics.ui.theme.DarkTextSecondary
-import com.mazzika.lyrics.ui.theme.Gold
+import com.mazzika.lyrics.ui.theme.Inter
+import com.mazzika.lyrics.ui.theme.LocalStudioTokens
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FolderDetailScreen(
     onNavigateBack: () -> Unit,
@@ -72,102 +77,120 @@ fun FolderDetailScreen(
     onNavigateToReader: (Long) -> Unit,
     viewModel: FolderDetailViewModel = viewModel(),
 ) {
+    val tokens = LocalStudioTokens.current
     val folder by viewModel.folder.collectAsState()
     val subFolders by viewModel.subFolders.collectAsState()
     val documents by viewModel.documents.collectAsState()
 
     var showCreateFolderDialog by remember { mutableStateOf(false) }
+    var showCatalogCopyDialog by remember { mutableStateOf(false) }
+    var fabExpanded by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = DarkBackground,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = folder?.icon ?: "📁",
-                            fontSize = 20.sp,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = folder?.name ?: "",
-                            color = DarkTextPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 18.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Retour",
-                            tint = DarkTextPrimary,
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground,
-                    titleContentColor = DarkTextPrimary,
-                ),
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateFolderDialog = true },
-                containerColor = Gold,
-                contentColor = DarkBackground,
-                shape = CircleShape,
-            ) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = "Créer un sous-dossier")
-            }
-        },
-    ) { innerPadding ->
+    val importFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) viewModel.importFileToFolder(uri) }
+
+    Box(modifier = Modifier.fillMaxSize().background(tokens.bg)) {
         if (subFolders.isEmpty() && documents.isEmpty()) {
-            EmptyFolderState(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                onCreateSubFolder = { showCreateFolderDialog = true },
-            )
+            EmptyFolderState(modifier = Modifier.fillMaxSize())
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(bottom = 80.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 100.dp),
             ) {
-                // Sub-folders section
+                // Sub-folders
                 if (subFolders.isNotEmpty()) {
                     item {
-                        SectionHeader(title = "Sous-dossiers")
-                    }
-                    item {
-                        SubFolderRow(
-                            folders = subFolders,
-                            onFolderClick = { onNavigateToFolder(it.id) },
+                        GroupLabel(
+                            text = "Sous-dossiers",
+                            withDot = false,
+                            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 0.dp),
                         )
                     }
                     item {
-                        Spacer(modifier = Modifier.height(16.dp))
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            items(subFolders) { sub ->
+                                InteractiveSubfolderChip(
+                                    folder = sub,
+                                    onClick = { onNavigateToFolder(sub.id) },
+                                    onDelete = { viewModel.deleteSubFolder(sub.id) },
+                                    onRename = { newName -> viewModel.renameSubFolder(sub.id, newName) },
+                                )
+                            }
+                        }
                     }
+                    item { Spacer(Modifier.height(12.dp)) }
                 }
 
-                // Documents section
+                // Documents
                 if (documents.isNotEmpty()) {
                     item {
-                        SectionHeader(title = "Fichiers")
+                        Box(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)) {
+                            SectionHeader(title = "Fichiers", count = documents.size)
+                        }
                     }
-                    items(documents) { document ->
-                        FolderDocumentItem(
-                            document = document,
-                            onClick = { onNavigateToReader(document.id) },
-                            onRemove = { viewModel.removeDocumentFromFolder(document.id) },
-                        )
+                    items(documents) { doc ->
+                        Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+                            InteractiveDocRow(
+                                document = doc,
+                                onClick = { onNavigateToReader(doc.id) },
+                                onRemove = { viewModel.removeDocumentFromFolder(doc.id) },
+                            )
+                        }
                     }
                 }
+            }
+        }
+
+        // Dim overlay when FAB expanded
+        if (fabExpanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable { fabExpanded = false },
+            )
+        }
+
+        // Speed-dial FAB
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 24.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            AnimatedVisibility(
+                visible = fabExpanded,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    SpeedDialItem("Copier depuis le catalogue", Icons.Filled.ContentCopy) {
+                        fabExpanded = false; showCatalogCopyDialog = true
+                    }
+                    SpeedDialItem("Importer fichier", Icons.Filled.UploadFile) {
+                        fabExpanded = false; importFileLauncher.launch(arrayOf("application/pdf"))
+                    }
+                    SpeedDialItem("Nouveau sous-dossier", Icons.Filled.CreateNewFolder) {
+                        fabExpanded = false; showCreateFolderDialog = true
+                    }
+                }
+            }
+
+            StudioFab(onClick = { fabExpanded = !fabExpanded }) {
+                Icon(
+                    imageVector = if (fabExpanded) Icons.Filled.Close else Icons.Filled.Add,
+                    contentDescription = if (fabExpanded) "Fermer" else "Ouvrir",
+                    modifier = Modifier.size(28.dp),
+                )
             }
         }
     }
@@ -181,177 +204,242 @@ fun FolderDetailScreen(
             },
         )
     }
-}
 
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-        color = DarkTextPrimary,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp,
-    )
-}
-
-@Composable
-private fun SubFolderRow(
-    folders: List<FolderEntity>,
-    onFolderClick: (FolderEntity) -> Unit,
-) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        items(folders) { folder ->
-            SubFolderCard(
-                folder = folder,
-                onClick = { onFolderClick(folder) },
-            )
-        }
+    if (showCatalogCopyDialog) {
+        CatalogCopyDialog(viewModel = viewModel, onDismiss = { showCatalogCopyDialog = false })
     }
 }
 
 @Composable
-private fun SubFolderCard(
-    folder: FolderEntity,
-    onClick: () -> Unit,
-) {
-    Card(
+private fun SpeedDialItem(label: String, icon: ImageVector, onClick: () -> Unit) {
+    val tokens = LocalStudioTokens.current
+    // Whole row triggers onClick — label and icon are both valid tap targets.
+    Row(
         modifier = Modifier
-            .width(120.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp),
+            .clip(RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(18.dp))
+                .background(if (tokens.isDark) tokens.surfaceHi else tokens.surface)
+                .border(1.dp, tokens.cardBorder, RoundedCornerShape(18.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             Text(
-                text = folder.icon ?: "📁",
-                fontSize = 32.sp,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = folder.name,
-                color = DarkTextPrimary,
-                fontSize = 13.sp,
+                text = label,
+                color = tokens.text,
+                fontFamily = Inter,
                 fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                fontSize = 13.sp,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(if (tokens.isDark) tokens.surfaceHi else tokens.surface)
+                .border(1.dp, tokens.cardBorder, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = tokens.gold,
+                modifier = Modifier.size(20.dp),
             )
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderDocumentItem(
+private fun InteractiveSubfolderChip(
+    folder: FolderEntity,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    onRename: (String) -> Unit,
+) {
+    val tokens = LocalStudioTokens.current
+    var showMenu by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = { showMenu = true },
+        ),
+    ) {
+        SubfolderChip(
+            emoji = folder.icon ?: "📁",
+            name = folder.name,
+            count = "",
+            onClick = onClick,
+        )
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Renommer", fontFamily = Inter) },
+                onClick = { showMenu = false; showRenameDialog = true },
+            )
+            DropdownMenuItem(
+                text = { Text("Supprimer", color = tokens.danger, fontFamily = Inter) },
+                onClick = { showMenu = false; onDelete() },
+            )
+        }
+    }
+
+    if (showRenameDialog) {
+        RenameFolderDialog(
+            currentName = folder.name,
+            onDismiss = { showRenameDialog = false },
+            onRename = { newName ->
+                onRename(newName); showRenameDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun InteractiveDocRow(
     document: PdfDocumentEntity,
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    val tokens = LocalStudioTokens.current
     var showMenu by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(DarkSurface),
-            contentAlignment = Alignment.Center,
+    Box {
+        DocRow(
+            title = document.title,
+            letter = document.title.firstOrNull()?.uppercase() ?: "?",
+            palette = paletteFor(document.id),
+            meta = "${document.pageCount} pages",
+            onClick = onClick,
+            onMoreClick = { showMenu = true },
+        )
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+            modifier = Modifier.align(Alignment.TopEnd),
         ) {
-            Icon(
-                imageVector = Icons.Filled.MusicNote,
-                contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(24.dp),
+            DropdownMenuItem(
+                text = { Text("Ouvrir", fontFamily = Inter) },
+                onClick = { showMenu = false; onClick() },
             )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = document.title,
-                color = DarkTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            DropdownMenuItem(
+                text = { Text("Retirer du dossier", color = tokens.danger, fontFamily = Inter) },
+                onClick = { showMenu = false; onRemove() },
             )
-            Text(
-                text = "${document.pageCount} page${if (document.pageCount != 1) "s" else ""}",
-                color = DarkTextMuted,
-                fontSize = 12.sp,
-            )
-        }
-
-        Box {
-            IconButton(onClick = { showMenu = true }) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = "Options",
-                    tint = DarkTextMuted,
-                )
-            }
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false },
-                containerColor = DarkSurfaceElevated,
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Ouvrir", color = DarkTextPrimary) },
-                    onClick = {
-                        showMenu = false
-                        onClick()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("Retirer du dossier", color = Color(0xFFCF6679)) },
-                    onClick = {
-                        showMenu = false
-                        onRemove()
-                    },
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun EmptyFolderState(
-    modifier: Modifier = Modifier,
-    onCreateSubFolder: () -> Unit,
+private fun CatalogCopyDialog(
+    viewModel: FolderDetailViewModel,
+    onDismiss: () -> Unit,
 ) {
+    val tokens = LocalStudioTokens.current
+    val allDocs by viewModel.allCatalogDocuments.collectAsState()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = tokens.surface,
+        title = {
+            Text(
+                "Copier depuis le catalogue",
+                color = tokens.text,
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 18.sp,
+            )
+        },
+        text = {
+            if (allDocs.isEmpty()) {
+                Text(
+                    "Aucun document dans le catalogue",
+                    color = tokens.textMid,
+                    fontFamily = Inter,
+                    fontSize = 14.sp,
+                )
+            } else {
+                LazyColumn(modifier = Modifier.height(300.dp)) {
+                    items(allDocs) { doc ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.addDocumentToFolder(doc.id)
+                                    onDismiss()
+                                }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MusicNote,
+                                contentDescription = null,
+                                tint = tokens.gold,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = doc.title,
+                                    color = tokens.text,
+                                    fontFamily = Inter,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = "${doc.pageCount} page${if (doc.pageCount != 1) "s" else ""}",
+                                    color = tokens.textMid,
+                                    fontFamily = Inter,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fermer", color = tokens.textMid, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+            }
+        },
+    )
+}
+
+@Composable
+private fun EmptyFolderState(modifier: Modifier = Modifier) {
+    val tokens = LocalStudioTokens.current
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = Icons.Filled.FolderOpen,
-            contentDescription = null,
-            tint = DarkTextMuted,
-            modifier = Modifier.size(64.dp),
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = "📂", fontSize = 48.sp)
+        Spacer(Modifier.height(16.dp))
         Text(
             text = "Dossier vide",
-            color = DarkTextSecondary,
+            color = tokens.textMid,
+            fontFamily = Inter,
+            fontWeight = FontWeight.SemiBold,
             fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(Modifier.height(8.dp))
         Text(
-            text = "Appuyez sur + pour créer un sous-dossier",
-            color = DarkTextMuted,
+            text = "Appuyez sur + pour ajouter du contenu",
+            color = tokens.textDim,
+            fontFamily = Inter,
+            fontWeight = FontWeight.Medium,
             fontSize = 13.sp,
         )
     }
