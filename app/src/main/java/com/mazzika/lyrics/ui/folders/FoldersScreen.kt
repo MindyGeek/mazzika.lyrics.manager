@@ -1,29 +1,21 @@
 package com.mazzika.lyrics.ui.folders
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -36,51 +28,45 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.db.entity.FolderEntity
+import com.mazzika.lyrics.ui.components.FolderCard
+import com.mazzika.lyrics.ui.components.FolderNewCard
 import com.mazzika.lyrics.ui.home.CreateFolderDialog
 import com.mazzika.lyrics.ui.home.HomeViewModel
-import com.mazzika.lyrics.ui.theme.DarkBackground
-import com.mazzika.lyrics.ui.theme.DarkSurface
-import com.mazzika.lyrics.ui.theme.DarkSurfaceElevated
-import com.mazzika.lyrics.ui.theme.DarkTextMuted
-import com.mazzika.lyrics.ui.theme.DarkTextPrimary
-import com.mazzika.lyrics.ui.theme.DarkTextSecondary
-import com.mazzika.lyrics.ui.theme.Gold
+import com.mazzika.lyrics.ui.theme.Inter
+import com.mazzika.lyrics.ui.theme.LocalStudioTokens
 
 @Composable
 fun FoldersScreen(
     onNavigateToFolder: (Long) -> Unit,
     viewModel: HomeViewModel = viewModel(),
 ) {
+    val tokens = LocalStudioTokens.current
     val rootFolders by viewModel.rootFolders.collectAsState()
     var showCreateFolderDialog by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize().background(DarkBackground)) {
+    Box(modifier = Modifier.fillMaxSize().background(tokens.bg)) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 100.dp),
+            columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 80.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            item {
-                NewFolderCard(onClick = { showCreateFolderDialog = true })
+            item(span = { GridItemSpan(currentLineSpan = 3) }) {
+                FoldersTitle(count = rootFolders.size)
             }
+
+            item {
+                FolderNewCard(onClick = { showCreateFolderDialog = true })
+            }
+
             items(rootFolders) { folder ->
-                FolderCard(
+                InteractiveFolderCard(
                     folder = folder,
                     onClick = { onNavigateToFolder(folder.id) },
                     onDelete = { viewModel.deleteFolder(folder.id) },
@@ -101,123 +87,72 @@ fun FoldersScreen(
     }
 }
 
+@Suppress("FunctionName")
+private fun GridItemSpan(currentLineSpan: Int) = androidx.compose.foundation.lazy.grid.GridItemSpan(currentLineSpan)
+
 @Composable
-private fun NewFolderCard(onClick: () -> Unit) {
-    val dashedBorderColor = Color(0x40C5A028)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .drawBehind {
-                val stroke = Stroke(
-                    width = 1.5.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(
-                        floatArrayOf(8.dp.toPx(), 6.dp.toPx()),
-                        0f,
-                    ),
-                )
-                drawRoundRect(
-                    color = dashedBorderColor,
-                    cornerRadius = CornerRadius(18.dp.toPx()),
-                    style = stroke,
-                    size = Size(size.width, size.height),
-                )
-            }
-            .clickable { onClick() },
+private fun FoldersTitle(count: Int) {
+    val tokens = LocalStudioTokens.current
+    Row(
+        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.Bottom,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "+",
-                fontSize = 22.sp,
-                color = DarkTextPrimary.copy(alpha = 0.4f),
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Nouveau",
-                color = Gold.copy(alpha = 0.6f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
+        Text(
+            text = "Mes Dossiers",
+            fontFamily = Inter,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 24.sp,
+            letterSpacing = (-0.72).sp,
+            color = tokens.text,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = "$count dossier${if (count > 1) "s" else ""}",
+            fontFamily = Inter,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = tokens.textMid,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun FolderCard(
+private fun InteractiveFolderCard(
     folder: FolderEntity,
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onRename: (String) -> Unit,
 ) {
+    val tokens = LocalStudioTokens.current
     var showMenu by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(DarkSurface)
-            .clickable { onClick() },
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = { showMenu = true },
+        ),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        FolderCard(
+            emoji = folder.icon ?: "📁",
+            name = folder.name,
+            count = null,
+            onClick = onClick,
+        )
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false },
+            modifier = Modifier.align(Alignment.TopEnd),
         ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = folder.icon ?: "\uD83D\uDCC1",
-                    fontSize = 28.sp,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-                Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                    IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(20.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.MoreVert,
-                            contentDescription = "Options",
-                            tint = DarkTextMuted,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Renommer") },
-                            onClick = {
-                                showMenu = false
-                                showRenameDialog = true
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Supprimer", color = Color(0xFFCF6679)) },
-                            onClick = {
-                                showMenu = false
-                                onDelete()
-                            },
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = folder.name,
-                color = DarkTextPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
+            DropdownMenuItem(
+                text = { Text("Renommer", fontFamily = Inter) },
+                onClick = { showMenu = false; showRenameDialog = true },
+            )
+            DropdownMenuItem(
+                text = { Text("Supprimer", color = tokens.danger, fontFamily = Inter) },
+                onClick = { showMenu = false; onDelete() },
             )
         }
     }
@@ -235,41 +170,51 @@ private fun FolderCard(
 }
 
 @Composable
-private fun RenameFolderDialog(
+fun RenameFolderDialog(
     currentName: String,
     onDismiss: () -> Unit,
     onRename: (String) -> Unit,
 ) {
+    val tokens = LocalStudioTokens.current
     var name by remember { mutableStateOf(currentName) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurfaceElevated,
-        title = { Text("Renommer le dossier", color = DarkTextPrimary) },
+        containerColor = tokens.surface,
+        title = {
+            Text(
+                "Renommer le dossier",
+                color = tokens.text,
+                fontFamily = Inter,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 18.sp,
+            )
+        },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Nom") },
+                label = { Text("Nom", fontFamily = Inter) },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Gold,
-                    unfocusedBorderColor = DarkTextMuted,
-                    focusedLabelColor = Gold,
-                    unfocusedLabelColor = DarkTextMuted,
-                    focusedTextColor = DarkTextPrimary,
-                    unfocusedTextColor = DarkTextPrimary,
+                    focusedBorderColor = tokens.gold,
+                    unfocusedBorderColor = tokens.border,
+                    focusedLabelColor = tokens.gold,
+                    unfocusedLabelColor = tokens.textMid,
+                    focusedTextColor = tokens.text,
+                    unfocusedTextColor = tokens.text,
+                    cursorColor = tokens.gold,
                 ),
             )
         },
         confirmButton = {
             TextButton(onClick = { if (name.isNotBlank()) onRename(name.trim()) }) {
-                Text("Renommer", color = Gold)
+                Text("Renommer", color = tokens.gold, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Annuler", color = DarkTextSecondary)
+                Text("Annuler", color = tokens.textMid, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
             }
         },
     )

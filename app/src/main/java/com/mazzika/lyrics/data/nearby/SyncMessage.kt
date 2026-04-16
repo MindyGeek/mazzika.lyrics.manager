@@ -6,6 +6,7 @@ sealed class SyncMessage {
 
     data class SessionInfo(
         val title: String,
+        val fileName: String,
         val pageCount: Int,
         val fileHash: String,
     ) : SyncMessage()
@@ -24,6 +25,7 @@ sealed class SyncMessage {
             is SessionInfo -> {
                 json.put("type", "SessionInfo")
                 json.put("title", title)
+                json.put("fileName", fileName)
                 json.put("pageCount", pageCount)
                 json.put("fileHash", fileHash)
             }
@@ -54,6 +56,10 @@ sealed class SyncMessage {
                 when (json.getString("type")) {
                     "SessionInfo" -> SessionInfo(
                         title = json.getString("title"),
+                        // Backwards-compat: older pilots didn't send `fileName`.
+                        fileName = json.optString("fileName", "").ifBlank {
+                            json.getString("title") + ".pdf"
+                        },
                         pageCount = json.getInt("pageCount"),
                         fileHash = json.getString("fileHash"),
                     )

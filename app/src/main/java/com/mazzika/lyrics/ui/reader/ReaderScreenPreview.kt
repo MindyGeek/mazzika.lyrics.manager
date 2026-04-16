@@ -34,11 +34,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mazzika.lyrics.ui.theme.Gold
-import com.mazzika.lyrics.ui.theme.GoldLight
+import com.mazzika.lyrics.ui.theme.GoldDark as Gold
+import com.mazzika.lyrics.ui.theme.GoldLightDark as GoldLight
 import com.mazzika.lyrics.ui.theme.MazzikaLyricsTheme
 import com.mazzika.lyrics.ui.theme.Success
-import com.mazzika.lyrics.ui.theme.Error
+import com.mazzika.lyrics.ui.theme.Danger as Error
 
 // ==================== PREVIEWS ====================
 

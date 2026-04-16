@@ -10,7 +10,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -31,11 +30,7 @@ import com.mazzika.lyrics.ui.navigation.BottomNavBar
 import com.mazzika.lyrics.ui.navigation.MazzikaTopBar
 import com.mazzika.lyrics.ui.navigation.NavGraph
 import com.mazzika.lyrics.ui.navigation.Screen
-import com.mazzika.lyrics.ui.navigation.SessionBanner
-import com.mazzika.lyrics.ui.navigation.bottomNavItems
 import com.mazzika.lyrics.ui.navigation.getScreenInfo
-import com.mazzika.lyrics.ui.sync.SyncRole
-import com.mazzika.lyrics.ui.sync.SyncViewModel
 import com.mazzika.lyrics.ui.theme.MazzikaLyricsTheme
 import kotlinx.coroutines.launch
 
@@ -59,19 +54,11 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                val mainTabRoutes = bottomNavItems.map { it.screen.route }.toSet()
                 val isReaderScreen = currentRoute?.startsWith("reader") == true || currentRoute == Screen.ReaderSync.route
                 val isSettingsScreen = currentRoute == Screen.Settings.route
                 val showBottomBar = !isReaderScreen && !isSettingsScreen
 
                 val screenInfo = getScreenInfo(currentRoute)
-
-                val syncViewModel: SyncViewModel = viewModel()
-                val syncRole by syncViewModel.role.collectAsState()
-                val connectedEndpoints by syncViewModel.connectedEndpoints.collectAsState()
-                val selectedDocument by syncViewModel.selectedDocument.collectAsState()
-                val isSessionActive = syncRole != SyncRole.NONE
-                val sessionName = selectedDocument?.title ?: "Session"
 
                 var currentFolderName by remember { mutableStateOf<String?>(null) }
                 var currentFolderIcon by remember { mutableStateOf<String?>(null) }
@@ -87,32 +74,15 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
                         if (screenInfo.showTopBar) {
-                            Column {
-                                MazzikaTopBar(
-                                    title = screenInfo.title,
-                                    showBackButton = screenInfo.showBackButton,
-                                    onBackClick = { navController.popBackStack() },
-                                    onSettingsClick = { navController.navigate(Screen.Settings.route) },
-                                    showSettingsButton = (currentRoute != Screen.Settings.route),
-                                    folderName = if (currentRoute?.startsWith("folder/") == true) currentFolderName else null,
-                                    folderIcon = if (currentRoute?.startsWith("folder/") == true) currentFolderIcon else null,
-                                )
-                                SessionBanner(
-                                    isVisible = isSessionActive,
-                                    role = syncRole,
-                                    sessionName = sessionName,
-                                    connectedCount = connectedEndpoints.size,
-                                    isConnectionLost = false,
-                                    onClick = {
-                                        val doc = selectedDocument
-                                        if (syncRole == SyncRole.PILOT && doc != null) {
-                                            navController.navigate(Screen.Reader.createRoute(doc.id))
-                                        } else if (syncRole == SyncRole.FOLLOWER) {
-                                            navController.navigate(Screen.ReaderSync.route)
-                                        }
-                                    },
-                                )
-                            }
+                            MazzikaTopBar(
+                                title = screenInfo.title,
+                                showBackButton = screenInfo.showBackButton,
+                                onBackClick = { navController.popBackStack() },
+                                onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                                showSettingsButton = (currentRoute != Screen.Settings.route),
+                                folderName = if (currentRoute?.startsWith("folder/") == true) currentFolderName else null,
+                                folderIcon = if (currentRoute?.startsWith("folder/") == true) currentFolderIcon else null,
+                            )
                         }
                     },
                     bottomBar = {
