@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,8 +15,12 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -141,19 +146,22 @@ private fun InteractiveFolderCard(
             count = null,
             onClick = onClick,
         )
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-            modifier = Modifier.align(Alignment.TopEnd),
-        ) {
-            DropdownMenuItem(
-                text = { Text("Renommer", fontFamily = Inter) },
-                onClick = { showMenu = false; showRenameDialog = true },
-            )
-            DropdownMenuItem(
-                text = { Text("Supprimer", color = tokens.danger, fontFamily = Inter) },
-                onClick = { showMenu = false; onDelete() },
-            )
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Renommer", fontFamily = Inter) },
+                    leadingIcon = { Icon(Icons.Filled.Edit, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; showRenameDialog = true },
+                )
+                DropdownMenuItem(
+                    text = { Text("Supprimer", color = tokens.danger, fontFamily = Inter) },
+                    leadingIcon = { Icon(Icons.Filled.Delete, null, Modifier.size(18.dp), tint = tokens.danger) },
+                    onClick = { showMenu = false; onDelete() },
+                )
+            }
         }
     }
 

@@ -34,7 +34,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -58,12 +60,15 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.db.entity.FolderEntity
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import com.mazzika.lyrics.ui.components.DocRow
 import com.mazzika.lyrics.ui.components.FeatureCard
 import com.mazzika.lyrics.ui.components.QuickAction
 import com.mazzika.lyrics.ui.components.QuickTile
 import com.mazzika.lyrics.ui.components.SectionHeader
 import com.mazzika.lyrics.ui.components.paletteFor
+import com.mazzika.lyrics.ui.sync.CreateSessionDialog
 import com.mazzika.lyrics.ui.sync.SyncRole
 import com.mazzika.lyrics.ui.sync.SyncViewModel
 import com.mazzika.lyrics.ui.theme.CoverGreenA
@@ -106,6 +111,12 @@ fun HomeScreen(
 
     var showImportDialog by remember { mutableStateOf(false) }
 
+    // Create-session dialog state — can be triggered from the QuickTile or from a doc's menu.
+    val allDocuments by syncViewModel.allDocuments.collectAsState()
+    val sessionName by syncViewModel.sessionName.collectAsState()
+    var showCreateSession by remember { mutableStateOf(false) }
+    var preSelectedDoc by remember { mutableStateOf<PdfDocumentEntity?>(null) }
+
     Box(modifier = Modifier.fillMaxSize().background(tokens.bg)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -117,7 +128,11 @@ fun HomeScreen(
             // ── Quick tiles 2×2
             item {
                 QuickTilesGrid(
-                    onCreateSession = onNavigateToSync,
+                    onCreateSession = {
+                        syncViewModel.initSessionName()
+                        preSelectedDoc = null
+                        showCreateSession = true
+                    },
                     onJoinSession = onNavigateToSync,
                     onImport = { showImportDialog = true },
                     onFolders = { /* handled by bottom nav */ },
@@ -129,7 +144,7 @@ fun HomeScreen(
                 item {
                     val sessionTitle = selectedDocument?.title ?: "Session en cours"
                     val roleLabel = if (syncRole == SyncRole.PILOT) "Session pilote" else "Session follower"
-                    val eyebrow = "● En direct • ${connectedEndpoints.size} connecté${if (connectedEndpoints.size > 1) "s" else ""}"
+                    val eyebrow = "En direct • ${connectedEndpoints.size} connecté${if (connectedEndpoints.size > 1) "s" else ""}"
                     Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
                         FeatureCard(
                             eyebrow = eyebrow,
@@ -158,14 +173,14 @@ fun HomeScreen(
             } else {
                 items(recentDocuments) { doc ->
                     Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
-                        DocRow(
-                            title = doc.title,
-                            letter = doc.title.firstOrNull()?.uppercase() ?: "?",
-                            palette = paletteFor(doc.id),
-                            meta = "${doc.pageCount} pages",
-                            isPlaying = false,
-                            onClick = { onNavigateToReader(doc.id) },
-                            onMoreClick = { /* TODO menu */ },
+                        RecentDocItem(
+                            doc = doc,
+                            onOpen = { onNavigateToReader(doc.id) },
+                            onShareSession = {
+                                syncViewModel.initSessionName()
+                                preSelectedDoc = doc
+                                showCreateSession = true
+                            },
                         )
                     }
                 }
@@ -178,6 +193,64 @@ fun HomeScreen(
             viewModel = viewModel,
             onDismiss = { showImportDialog = false },
         )
+    }
+
+    if (showCreateSession) {
+        CreateSessionDialog(
+            sessionName = sessionName,
+            onSessionNameChange = { syncViewModel.setSessionName(it) },
+            allDocuments = allDocuments,
+            preSelectedDocument = preSelectedDoc,
+            onDismiss = {
+                showCreateSession = false
+                preSelectedDoc = null
+            },
+            onStart = { doc ->
+                syncViewModel.startAsPilot(doc)
+                showCreateSession = false
+                preSelectedDoc = null
+                onNavigateToSync()
+            },
+        )
+    }
+}
+
+@Composable
+private fun RecentDocItem(
+    doc: PdfDocumentEntity,
+    onOpen: () -> Unit,
+    onShareSession: () -> Unit,
+) {
+    val tokens = LocalStudioTokens.current
+    var showMenu by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        DocRow(
+            title = doc.title,
+            letter = doc.title.firstOrNull()?.uppercase() ?: "?",
+            palette = paletteFor(doc.id),
+            meta = "${doc.pageCount} pages",
+            isPlaying = false,
+            onClick = onOpen,
+            onMoreClick = { showMenu = true },
+        )
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onOpen() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Partager en session", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.Filled.CellTower, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onShareSession() },
+                )
+            }
+        }
     }
 }
 
