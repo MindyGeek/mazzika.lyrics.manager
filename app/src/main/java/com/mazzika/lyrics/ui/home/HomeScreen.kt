@@ -34,7 +34,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -222,7 +224,7 @@ private fun RecentDocItem(
     val tokens = LocalStudioTokens.current
     var showMenu by remember { mutableStateOf(false) }
 
-    Box {
+    Box(modifier = Modifier.fillMaxWidth()) {
         DocRow(
             title = doc.title,
             letter = doc.title.firstOrNull()?.uppercase() ?: "?",
@@ -232,19 +234,22 @@ private fun RecentDocItem(
             onClick = onOpen,
             onMoreClick = { showMenu = true },
         )
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
-                onClick = { showMenu = false; onOpen() },
-            )
-            DropdownMenuItem(
-                text = { Text("Partager en session", fontFamily = Inter, color = tokens.text) },
-                leadingIcon = { Text("📡", fontSize = 16.sp) },
-                onClick = { showMenu = false; onShareSession() },
-            )
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onOpen() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Partager en session", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.Filled.CellTower, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onShareSession() },
+                )
+            }
         }
     }
 }

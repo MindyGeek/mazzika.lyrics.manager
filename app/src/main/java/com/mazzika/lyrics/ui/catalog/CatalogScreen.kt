@@ -22,6 +22,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -40,7 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.ComponentActivity
@@ -270,31 +273,32 @@ private fun DocRowWithMenu(
             onClick = onClick,
             onMoreClick = { showMenu = true },
         )
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-            offset = DpOffset(x = (-160).dp, y = 0.dp),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .background(tokens.surface),
-        ) {
-            DropdownMenuItem(
-                text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
-                onClick = { showMenu = false; onClick() },
-            )
-            DropdownMenuItem(
-                text = { Text("Partager en session", fontFamily = Inter, color = tokens.text) },
-                leadingIcon = { Text("📡", fontSize = 14.sp) },
-                onClick = { showMenu = false; onShareSession() },
-            )
-            DropdownMenuItem(
-                text = { Text("Ranger dans un dossier", fontFamily = Inter, color = tokens.text) },
-                onClick = { showMenu = false; onAddToFolder() },
-            )
-            DropdownMenuItem(
-                text = { Text("Supprimer", fontFamily = Inter, color = tokens.danger) },
-                onClick = { showMenu = false; onDelete() },
-            )
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onClick() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Partager en session", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.Filled.CellTower, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onShareSession() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Ranger dans un dossier", fontFamily = Inter, color = tokens.text) },
+                    leadingIcon = { Icon(Icons.Filled.Folder, null, Modifier.size(18.dp), tint = tokens.textMid) },
+                    onClick = { showMenu = false; onAddToFolder() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Supprimer", fontFamily = Inter, color = tokens.danger) },
+                    leadingIcon = { Icon(Icons.Filled.Delete, null, Modifier.size(18.dp), tint = tokens.danger) },
+                    onClick = { showMenu = false; onDelete() },
+                )
+            }
         }
     }
 }
