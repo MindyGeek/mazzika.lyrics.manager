@@ -80,6 +80,13 @@ fun NavGraph(
                 onNavigateToReader = { documentId ->
                     navController.navigate(Screen.Reader.createRoute(documentId))
                 },
+                onNavigateToSync = {
+                    navController.navigate(Screen.Sync.route) {
+                        popUpTo(Screen.Home.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
             )
         }
 

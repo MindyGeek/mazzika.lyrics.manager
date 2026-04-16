@@ -43,8 +43,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mazzika.lyrics.data.db.entity.PdfDocumentEntity
+import com.mazzika.lyrics.ui.sync.CreateSessionDialog
+import com.mazzika.lyrics.ui.sync.SyncViewModel
 import com.mazzika.lyrics.ui.components.DocRow
 import com.mazzika.lyrics.ui.components.FilterChip
 import com.mazzika.lyrics.ui.components.SearchInputBar
@@ -62,6 +66,7 @@ private enum class CatalogChip(val label: String) {
 @Composable
 fun CatalogScreen(
     onNavigateToReader: (Long) -> Unit,
+    onNavigateToSync: () -> Unit = {},
     viewModel: CatalogViewModel = viewModel(),
 ) {
     val tokens = LocalStudioTokens.current
@@ -69,6 +74,14 @@ fun CatalogScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
     val allFolders by viewModel.allFolders.collectAsState()
+
+    // Create-session dialog — Activity-scoped SyncViewModel for session management.
+    val activity = LocalContext.current as ComponentActivity
+    val syncViewModel: SyncViewModel = viewModel(activity)
+    val allDocsForSession by syncViewModel.allDocuments.collectAsState()
+    val sessionName by syncViewModel.sessionName.collectAsState()
+    var showCreateSession by remember { mutableStateOf(false) }
+    var preSelectedDoc by remember { mutableStateOf<PdfDocumentEntity?>(null) }
 
     var documentToAddToFolder by remember { mutableStateOf<Long?>(null) }
     var documentToDelete by remember { mutableStateOf<PdfDocumentEntity?>(null) }
@@ -108,6 +121,11 @@ fun CatalogScreen(
                                 onClick = { onNavigateToReader(doc.id) },
                                 onAddToFolder = { documentToAddToFolder = doc.id },
                                 onDelete = { documentToDelete = doc },
+                                onShareSession = {
+                                    syncViewModel.initSessionName()
+                                    preSelectedDoc = doc
+                                    showCreateSession = true
+                                },
                             )
                         }
                     }
@@ -157,6 +175,25 @@ fun CatalogScreen(
             onConfirm = {
                 viewModel.deleteDocument(docToDelete.id)
                 documentToDelete = null
+            },
+        )
+    }
+
+    if (showCreateSession) {
+        CreateSessionDialog(
+            sessionName = sessionName,
+            onSessionNameChange = { syncViewModel.setSessionName(it) },
+            allDocuments = allDocsForSession,
+            preSelectedDocument = preSelectedDoc,
+            onDismiss = {
+                showCreateSession = false
+                preSelectedDoc = null
+            },
+            onStart = { doc ->
+                syncViewModel.startAsPilot(doc)
+                showCreateSession = false
+                preSelectedDoc = null
+                onNavigateToSync()
             },
         )
     }
@@ -219,6 +256,7 @@ private fun DocRowWithMenu(
     onClick: () -> Unit,
     onAddToFolder: () -> Unit,
     onDelete: () -> Unit,
+    onShareSession: () -> Unit,
 ) {
     val tokens = LocalStudioTokens.current
     var showMenu by remember { mutableStateOf(false) }
@@ -232,9 +270,6 @@ private fun DocRowWithMenu(
             onClick = onClick,
             onMoreClick = { showMenu = true },
         )
-        // Dropdown anchored to the right edge of the row; the `offset` shifts it
-        // leftward so the menu sits to the LEFT of the ⋯ button rather than
-        // overlapping it.
         DropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false },
@@ -246,6 +281,11 @@ private fun DocRowWithMenu(
             DropdownMenuItem(
                 text = { Text("Ouvrir", fontFamily = Inter, color = tokens.text) },
                 onClick = { showMenu = false; onClick() },
+            )
+            DropdownMenuItem(
+                text = { Text("Partager en session", fontFamily = Inter, color = tokens.text) },
+                leadingIcon = { Text("📡", fontSize = 14.sp) },
+                onClick = { showMenu = false; onShareSession() },
             )
             DropdownMenuItem(
                 text = { Text("Ranger dans un dossier", fontFamily = Inter, color = tokens.text) },
