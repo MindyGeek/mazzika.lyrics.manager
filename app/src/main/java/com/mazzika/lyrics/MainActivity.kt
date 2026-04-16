@@ -12,6 +12,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.SideEffect
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,6 +51,18 @@ class MainActivity : ComponentActivity() {
             }
 
             MazzikaLyricsTheme(darkTheme = darkTheme) {
+                // Keep the status-bar icon appearance in sync with the current theme.
+                // enableEdgeToEdge() only runs once at Activity start, so a dynamic
+                // SideEffect is needed when the user toggles light/dark from Settings.
+                SideEffect {
+                    val controller = androidx.core.view.WindowCompat
+                        .getInsetsController(window, window.decorView)
+                    // Light status bar = dark icons (for light theme backgrounds).
+                    controller.isAppearanceLightStatusBars = !darkTheme
+                    // Same for the navigation bar.
+                    controller.isAppearanceLightNavigationBars = !darkTheme
+                }
+
                 val navController = rememberNavController()
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
